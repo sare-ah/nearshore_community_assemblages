@@ -11,6 +11,7 @@ rm(list=ls())
 library(mapview)
 library(tidyverse)
 library(rstudioapi)
+library(vegan)
 
 # Inputs
 #-------
@@ -59,126 +60,132 @@ getwd()
 # head(matFull,3)
 
 # Look-up table to match species codes to latin names
-luTbl <- read.csv( "T:/Benthic_Habitat_Mapping/Data/Look-upTbls/SpeciesLookUpTbl.csv", header=T, sep=",", stringsAsFactors=F )
+#luTbl <- read.csv( "T:/Benthic_Habitat_Mapping/Data/Look-upTbls/SpeciesLookUpTbl.csv", header=T, sep=",", stringsAsFactors=F )
 
+# Summaries
+#----------
+# To Do: Biodiversity indices *** 
 
-# # Organize data into species & env
-# #---------------------------------
-# # Checks for complete recordset
-# matFull <- unique(matFull)
-# matFull <- dplyr::filter(matFull, x!=0)
-# 
-# # Set rownames
-# rownames(matFull) <- matFull$TransDepth
-# 
-# # Divide columns into species and environmental variabls
-# species <- names(matFull)[c(17:185)] # specify species columns, if different
-# species
-# idvars <- (matFull[,1]) # specify unique identifier for each row, if different
-# 
-# # Create matrix just of species columns
-# spp <- matFull[,species]
-
-
-
-# Regional summaries
-#-------------------
-# Biodiversity index *** To Do
-
-
-
-output <- vector("list", 4)
+summariesByRegion <- vector("list", 4)
+# Calculate summaries
 for (i in 1:length(sppByRegion)){
   # Get region name
-  names(output)[[i]] <- names(sppByRegion)[i]
-  spp <- as.data.frame(sppByRegion[i])
-  # Regional summaries
-  #-------------------
-  #
-  # Site summaries
-  #---------------
+  names(summariesByRegion)[[i]] <- names(sppByRegion)[i]
+  spp <- as.data.frame(sppByRegion[[i]])
   # Number of sampling units 
-  output[[i]]$nUnits <- nrow(spp)
-  # Number of species per sampling unit
-  output[[i]]$sppCnts <- as.data.frame(rowSums(spp))
-  output[[i]]$freq <- spp.freq(speciesObs=spp)
+  summariesByRegion[[i]]$nUnits <- nrow(spp)
+  # Number of species per sampling unit (Richness)
+  summariesByRegion[[i]]$sppRichness <- rowSums(spp)
+  # Frequency of occurence for each species
+  summariesByRegion[[i]]$sppFreq <- spp.freq(speciesObs=spp)
   }
 
+# Plot summaries
+par(mfrow = c(1, 1))  # Set up a 1 x 1 plotting space
 
-# colnames(sCnts) <- "sppCount"
-# boxplot(sCnts$sppCount, horizontal = TRUE,main=c(region," Number of Species per Sampling Unit"))
-# hist(sCnts$sppCount, prob=TRUE, main=c(region," Number of Species per Sampling Unit",ylab="Density",xlab="Counts"))
+# Extract richness values
+richness <- map(summariesByRegion, "sppRichness")
 
-
-
-
-siteSummaries <- function(sites=sppByRegion[i]){
-  nUnits <- nrow(sites)
-  # Number of species per sampling unit
-  sCnts <- as.data.frame(rowSums(sites))
-  result <- list(nUnits,sCnts)
-}
-  
-  
+boxplot(richness, main="Number of Species per Sampling Unit")
 
 
-# To Do: Add map of sites
-
-
-# Species summaries
-#------------------
-sppFinal <- spp.freq(speciesObs=spp, speciesLut=luTbl, samplingUnits=nUnits)
-
-# Top and bottom 20 species
-top20 <- sppFinal %>%
-  arrange(desc(Freq)) %>%
-  slice(1:20)
-top20
-sppFinal <- dplyr::filter(sppFinal, Freq!=0)
-a <- nrow(sppFinal)
-b <- a -19
-bottom20 <- sppFinal %>%
-  arrange(desc(Freq)) %>%
-  slice(b:a)
-bottom20
-
-
-# Depth range summaries
-#----------------------
-# Subset 
-dCat <- dplyr::select(matFull, c(13,17:185))
-
-# Melt dataframe
-dCat <- dRng %>%
-  pivot_longer(-DepthCat,
-               names_to = "species",
-               values_to = "presence")
-
-dCat <- dplyr::filter(dCat, presence!=0)
-
-# Plot and save
-# Plot is incorrect! Should be a histogram with species along x-axis & categories along the y-axis
-# May want to separate by inverts and algae for easier reading
-ggplot(dCat, aes(x=DepthCat,y=reorder(species,desc(species))))+
-  geom_line(colour="blue") +
-  theme_bw() +
-  scale_x_continuous(breaks=seq(-8,20,by=1))+
-  labs(x="Depth Category")+
-  theme(axis.title.y=element_blank(),
-        axis.text.y = element_text(face="italic"),
-        panel.grid.major.x = element_blank(),
-        panel.grid.minor.y = element_blank(),
-        panel.grid.major.y = element_line(colour = "grey60",linetype = "dashed"))
-filename <- paste0(region,".DepthCategories")
-ggsave(file=paste0(outdir,filename,'.pdf',sep=''))
-
-
-# Plot on a map
-#-------------
-# coords <- dplyr::select(env, LonStart, LatStart)
-# ggplot(coords, aes(LonStart, LatStart)) + geom_point()
-# filename <- paste0(outdir,"SiteLocations.pdf")
-# ggsave(filename)
-
-# Combine regional summaries 
-#---------------------------
+# #hist(richness, prob=TRUE, main=" Number of Species per Sampling Unit",ylab="Density",xlab="Counts")
+# 
+# 
+# 
+# spp <- as.data.frame(sppByRegion[[1]])
+# 
+# S <- specnumber(spp) # observed number of species
+# raremax <- min(rowSums(t(spp)))
+# Srare <- rarefy(t(spp), raremax)
+# plot(S, Srare, xlab = "Observed No. of Species", ylab = "Rarefied No. of Species")
+# abline(0, 1)
+# rarecurve(t(spp), step = 2, sample = raremax, col = "blue", cex = 0.6)
+# 
+# 
+# 
+# specpool(spp)
+# s <- sample(nrow(spp), 500)
+# specpool(spp[s,])
+# 
+# rarecurve(spp)
+# plot(specaccum(spp))
+# 
+# # Species accumulation curve
+# sac <- specaccum(spp)
+# plot(sac, ci.type="polygon", ci.col="light blue")  
+# 
+# 
+# sp1 <- specaccum(spp)
+# sp2 <- specaccum(spp, "random")
+# sp2
+# summary(sp2)
+# plot(sp1)
+# boxplot(sp1, col="yellow", add=TRUE, pch="+")
+# 
+# 
+# 
+# diversity(spp, index="shannon")
+# # To Do: Add map of sites
+# 
+# data(BCI)
+# H <- diversity(BCI)
+# simp <- diversity(BCI, "simpson")
+# 
+# # Species summaries
+# #------------------
+# #sppFinal <- spp.freq(speciesObs=spp, speciesLut=luTbl, samplingUnits=nUnits)
+# 
+# # Top and bottom 20 species
+# top20 <- sppFinal %>%
+#   arrange(desc(Freq)) %>%
+#   slice(1:20)
+# top20
+# sppFinal <- dplyr::filter(sppFinal, Freq!=0)
+# a <- nrow(sppFinal)
+# b <- a -19
+# bottom20 <- sppFinal %>%
+#   arrange(desc(Freq)) %>%
+#   slice(b:a)
+# bottom20
+# 
+# 
+# # Depth range summaries
+# #----------------------
+# # Subset 
+# dCat <- dplyr::select(matFull, c(13,17:185))
+# 
+# # Melt dataframe
+# dCat <- dRng %>%
+#   pivot_longer(-DepthCat,
+#                names_to = "species",
+#                values_to = "presence")
+# 
+# dCat <- dplyr::filter(dCat, presence!=0)
+# 
+# # Plot and save
+# # Plot is incorrect! Should be a histogram with species along x-axis & categories along the y-axis
+# # May want to separate by inverts and algae for easier reading
+# ggplot(dCat, aes(x=DepthCat,y=reorder(species,desc(species))))+
+#   geom_line(colour="blue") +
+#   theme_bw() +
+#   scale_x_continuous(breaks=seq(-8,20,by=1))+
+#   labs(x="Depth Category")+
+#   theme(axis.title.y=element_blank(),
+#         axis.text.y = element_text(face="italic"),
+#         panel.grid.major.x = element_blank(),
+#         panel.grid.minor.y = element_blank(),
+#         panel.grid.major.y = element_line(colour = "grey60",linetype = "dashed"))
+# filename <- paste0(region,".DepthCategories")
+# ggsave(file=paste0(outdir,filename,'.pdf',sep=''))
+# 
+# 
+# # Plot on a map
+# #-------------
+# # coords <- dplyr::select(env, LonStart, LatStart)
+# # ggplot(coords, aes(LonStart, LatStart)) + geom_point()
+# # filename <- paste0(outdir,"SiteLocations.pdf")
+# # ggsave(filename)
+# 
+# # Combine regional summaries 
+# #---------------------------

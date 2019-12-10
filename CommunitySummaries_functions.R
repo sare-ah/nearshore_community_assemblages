@@ -51,8 +51,6 @@ spp.freq <- function(speciesObs){
   sppCnts <- dplyr::select(sppCnts, Species_Code, Counts, Freq)
   sppCnts <- sppCnts[order(-sppCnts$Freq),]
   sppCnts[is.na(sppCnts)] <- " "
-  # Remove irriating region prefix
-  sppCnts$Species_Code = gsub("^.*\\.","", sppCnts$Species_Code)
   return(sppCnts)
 }
 
