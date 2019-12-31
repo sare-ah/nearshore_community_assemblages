@@ -95,13 +95,13 @@ jpeg(file="NumSppSamplingUnit.jpeg")
 dev.off()
 
 # Flatten list into a dataframe to assess differences between regions
-flat <- map(map_if(richness,~class(.x)=="matrix",list),~map(.x,as.data.frame))
-new.df <-map_dfr(flat,~map_dfr(.x,identity,.id="TransDepth"),identity,.id="region")
-colnames(new.df)[3] <- "spCnt"
-head(new.df)
+flat1 <- map(map_if(richness,~class(.x)=="matrix",list),~map(.x,as.data.frame))
+flat2 <-map_dfr(flat1,~map_dfr(.x,identity,.id="TransDepth"),identity,.id="region")
+colnames(flat2)[3] <- "spCnt"
+head(flat2)
 
-# Test to confirm that your new df has the right number of rows!
-test <- new.df %>%
+# Summary table
+nUnitsSum <- flat2 %>%
   group_by(region) %>%
   mutate(units = length(spCnt))%>%
   mutate(mean = mean(spCnt)) %>%
@@ -109,17 +109,42 @@ test <- new.df %>%
   mutate(max = max(spCnt)) %>%
   select(region, units, mean, min, max) %>%
   distinct(region, units, mean, min, max)
-test 
+nUnitsSum 
 
 # Are there significant differences between regions?
-kw <- kruskal.test(spCnt ~ region, data=new.df )
+kw <- kruskal.test(spCnt ~ region, data=flat2)
 kw # very large chi-squared value!
 
 # Which regions are different?
-pair.w <- pairwise.wilcox.test(new.df$spCnt, new.df$region,
-                     p.adjust.method = "BH")
+pair.w <- pairwise.wilcox.test(flat2$spCnt, flat2$region,
+                     p.adjust.method = "BH") # What are the benefits of the different adjustment methods?
 pair.w
 
+
+# --- Species accumulation curves --- #
+par(mfrow = c(2, 2))  # Set up a 2 x 2 plotting space
+
+# Calculate summaries
+for (i in 1:length(sppByRegion)){
+  # Get region name
+  names(summariesByRegion)[[i]] <- names(sppByRegion)[i]
+  spp <- as.data.frame(sppByRegion[[i]])
+  label <- names(summariesByRegion)[[i]]
+  # Number of sampling units 
+  sac <- specaccum(spp)
+  plot(sac, main=label, ylim=c(0,170), ylab="Number of Species", ci.col="light blue")
+  #plot(sac, main=label, ylim=c(0,170), xlim=c(0,2100), ylab="Number of Species", ci.col="light blue")
+}
+
+# --- Species rank --- #
+
+#*** Look at: https://cran.r-project.org/web/packages/vegan/vignettes/diversity-vegan.pdf
+#***
+
+# --- Frequency of occurence of each species --- #
+
+
+#///////////////#
 # fix plot, add jittered points
 
 # p <- ggplot(richlist) + 
@@ -155,37 +180,35 @@ pair.w
 # 
 # 
 # 
-# spp <- as.data.frame(sppByRegion[[1]])
-# 
-# S <- specnumber(spp) # observed number of species
-# raremax <- min(rowSums(t(spp)))
-# Srare <- rarefy(t(spp), raremax)
-# plot(S, Srare, xlab = "Observed No. of Species", ylab = "Rarefied No. of Species")
-# abline(0, 1)
-# rarecurve(t(spp), step = 2, sample = raremax, col = "blue", cex = 0.6)
-# 
-# 
-# 
-# specpool(spp)
-# s <- sample(nrow(spp), 500)
-# specpool(spp[s,])
-# 
-# rarecurve(spp)
-# plot(specaccum(spp))
-# 
-# # Species accumulation curve
-# sac <- specaccum(spp)
-# plot(sac, ci.type="polygon", ci.col="light blue")  
-# 
-# 
-# sp1 <- specaccum(spp)
-# sp2 <- specaccum(spp, "random")
-# sp2
-# summary(sp2)
-# plot(sp1)
-# boxplot(sp1, col="yellow", add=TRUE, pch="+")
-# 
-# 
+spp <- as.data.frame(sppByRegion[[1]])
+
+S <- specnumber(spp) # observed number of species
+raremax <- min(rowSums(t(spp)))
+Srare <- rarefy(t(spp), raremax)
+plot(S, Srare, xlab = "Observed No. of Species", ylab = "Rarefied No. of Species")
+abline(0, 1)
+rarecurve(t(spp), step = 2, sample = raremax, col = "blue", cex = 0.6)
+
+
+
+specpool(spp)
+s <- sample(nrow(spp), 500)
+specpool(spp[s,])
+
+rarecurve(spp)
+plot(specaccum(spp))
+
+
+
+
+sp1 <- specaccum(spp)
+sp2 <- specaccum(spp, "random")
+sp2
+summary(sp2)
+plot(sp1)
+boxplot(sp1, col="yellow", add=TRUE, pch="+")
+
+
 # 
 # diversity(spp, index="shannon")
 # # To Do: Add map of sites
