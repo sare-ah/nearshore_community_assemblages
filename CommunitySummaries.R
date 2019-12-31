@@ -24,7 +24,7 @@ dsn <- "SHP"
 # Site by Species csv file
 # myFile <- choose.files(default = "T:/Benthic_Habitat_Mapping/Data",
 #                        caption = "Select site X species, with enviromental variables") 
-myFile <- "T:/Benthic_Habitat_Mapping/Data/Species by Site Matrices/qcsbyDepthCat_AllSpp.csv"
+# myFile <- "T:/Benthic_Habitat_Mapping/Data/Species by Site Matrices/qcsbyDepthCat_AllSpp.csv"
 
 # Read in species by regions
 #---------------------------
@@ -66,7 +66,10 @@ getwd()
 #----------
 # To Do: Biodiversity indices *** 
 
+
+# --- Number of species per sampling unit --- #
 summariesByRegion <- vector("list", 4)
+
 # Calculate summaries
 for (i in 1:length(sppByRegion)){
   # Get region name
@@ -76,18 +79,77 @@ for (i in 1:length(sppByRegion)){
   summariesByRegion[[i]]$nUnits <- nrow(spp)
   # Number of species per sampling unit (Richness)
   summariesByRegion[[i]]$sppRichness <- rowSums(spp)
+  print(min(rowSums(spp)))
   # Frequency of occurence for each species
   summariesByRegion[[i]]$sppFreq <- spp.freq(speciesObs=spp)
   }
 
-# Plot summaries
-par(mfrow = c(1, 1))  # Set up a 1 x 1 plotting space
-
 # Extract richness values
 richness <- map(summariesByRegion, "sppRichness")
+str(richness)
 
-boxplot(richness, main="Number of Species per Sampling Unit")
+# Plot summaries
+par(mfrow = c(1, 1))  # Set up a 1 x 1 plotting space
+jpeg(file="NumSppSamplingUnit.jpeg")
+  boxplot(richness, ylab="Count of Species")
+dev.off()
 
+# Flatten list into a dataframe to assess differences between regions
+flat <- map(map_if(richness,~class(.x)=="matrix",list),~map(.x,as.data.frame))
+new.df <-map_dfr(flat,~map_dfr(.x,identity,.id="TransDepth"),identity,.id="region")
+colnames(new.df)[3] <- "spCnt"
+head(new.df)
+
+# Test to confirm that your new df has the right number of rows!
+test <- new.df %>%
+  group_by(region) %>%
+  mutate(units = length(spCnt))%>%
+  mutate(mean = mean(spCnt)) %>%
+  mutate(min = min(spCnt)) %>%
+  mutate(max = max(spCnt)) %>%
+  select(region, units, mean, min, max) %>%
+  distinct(region, units, mean, min, max)
+test 
+
+# Are there significant differences between regions?
+kw <- kruskal.test(spCnt ~ region, data=new.df )
+kw # very large chi-squared value!
+
+# Which regions are different?
+pair.w <- pairwise.wilcox.test(new.df$spCnt, new.df$region,
+                     p.adjust.method = "BH")
+pair.w
+
+# fix plot, add jittered points
+
+# p <- ggplot(richlist) + 
+#   geom_boxplot(y=y)
+# p
+# 
+# series <- seq(1:10)
+# 
+# lst <- list()
+# 
+# set.seed(28100)
+# for (t in series) {
+#   lst[[t]] <- sample(c(1:20, NA), sample(1:20, 1))
+# }
+# 
+# # Modify lst into data frames of varying dimension
+# lst <- lapply(series, function(x) {
+#   data.frame(series = factor(x, levels = series),
+#              y = lst[[x]])
+# })
+# 
+# 
+# # Stack the data frames
+# lst <- do.call(rbind, lst)
+# 
+# 
+# 
+# # Make the plot
+# ggplot(lst, aes(x = richness, y = y)) +
+#   geom_boxplot()
 
 # #hist(richness, prob=TRUE, main=" Number of Species per Sampling Unit",ylab="Density",xlab="Counts")
 # 
