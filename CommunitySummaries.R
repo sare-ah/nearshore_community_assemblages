@@ -67,7 +67,7 @@ getwd()
 # To Do: Biodiversity indices *** 
 
 
-# --- Number of species per sampling unit --- #
+# --- Build list of summary stats --- #
 summariesByRegion <- vector("list", 4)
 
 # Calculate summaries
@@ -79,10 +79,13 @@ for (i in 1:length(sppByRegion)){
   summariesByRegion[[i]]$nUnits <- nrow(spp)
   # Number of species per sampling unit (Richness)
   summariesByRegion[[i]]$sppRichness <- rowSums(spp)
-  print(min(rowSums(spp)))
+  #print(min(rowSums(spp)))
   # Frequency of occurence for each species
   summariesByRegion[[i]]$sppFreq <- spp.freq(speciesObs=spp)
   }
+
+
+# --- Number of species per sampling unit --- #
 
 # Extract richness values
 richness <- map(summariesByRegion, "sppRichness")
@@ -96,9 +99,16 @@ dev.off()
 
 # Flatten list into a dataframe to assess differences between regions
 flat1 <- map(map_if(richness,~class(.x)=="matrix",list),~map(.x,as.data.frame))
-flat2 <-map_dfr(flat1,~map_dfr(.x,identity,.id="TransDepth"),identity,.id="region")
+flat2 <- map_dfr(flat1,~map_dfr(.x,identity,.id="TransDepth"),identity,.id="region")
 colnames(flat2)[3] <- "spCnt"
 head(flat2)
+
+# To do: Make figure prettier
+ggplot(flat2, aes(x=region,
+                     y=spCnt)) +
+  geom_boxplot(notch = T,
+               fill = "blue", 
+               alpha = 0.7) 
 
 # Summary table
 nUnitsSum <- flat2 %>%
@@ -136,12 +146,37 @@ for (i in 1:length(sppByRegion)){
   #plot(sac, main=label, ylim=c(0,170), xlim=c(0,2100), ylab="Number of Species", ci.col="light blue")
 }
 
-# --- Species rank --- #
-
-#*** Look at: https://cran.r-project.org/web/packages/vegan/vignettes/diversity-vegan.pdf
-#***
-
 # --- Frequency of occurence of each species --- #
+# Can be found in summariesByRegion[[i]]$sppFreq 
+
+# Build one large table of species X survey area
+foo <- vector("list", 4)
+
+for (i in 1:length(summariesByRegion)){
+  # Get region name
+  names(foo)[[i]] <- names(summariesByRegion)[i]
+  foo[[i]] <- summariesByRegion[[i]]$sppFreq
+}
+
+
+  
+  
+i.Final <- dplyr::filter(sppFinal, grepl("I_", Species_Code) )
+a.Final <- as.data.frame(dplyr::filter(sppFinal, grepl("A_", Species_Code) ))
+a.Final <- a.Final %>% 
+  arrange(desc(Freq)) %>%
+  rownames_to_column(var="Rank") 
+
+a.Final$Rank = as.numeric(a.Final$Rank )
+
+  
+head(a.Final)
+
+
+# --- Species rank --- #
+ggplot(a.Final, aes(x = Rank, y = Freq)) +
+  geom_bar(stat="identity")
+
 
 
 #///////////////#
@@ -176,38 +211,37 @@ for (i in 1:length(sppByRegion)){
 # ggplot(lst, aes(x = richness, y = y)) +
 #   geom_boxplot()
 
-# #hist(richness, prob=TRUE, main=" Number of Species per Sampling Unit",ylab="Density",xlab="Counts")
+
+
+
+####
+
+# S <- specnumber(spp) # observed number of species
+# raremax <- min(rowSums(t(spp)))
+# Srare <- rarefy(t(spp), raremax)
+# plot(S, Srare, xlab = "Observed No. of Species", ylab = "Rarefied No. of Species")
+# abline(0, 1)
+# rarecurve(t(spp), step = 2, sample = raremax, col = "blue", cex = 0.6)
 # 
 # 
 # 
-spp <- as.data.frame(sppByRegion[[1]])
-
-S <- specnumber(spp) # observed number of species
-raremax <- min(rowSums(t(spp)))
-Srare <- rarefy(t(spp), raremax)
-plot(S, Srare, xlab = "Observed No. of Species", ylab = "Rarefied No. of Species")
-abline(0, 1)
-rarecurve(t(spp), step = 2, sample = raremax, col = "blue", cex = 0.6)
+# specpool(spp)
+# s <- sample(nrow(spp), 500)
+# specpool(spp[s,])
+# 
+# rarecurve(spp)
+# plot(specaccum(spp))
 
 
-
-specpool(spp)
-s <- sample(nrow(spp), 500)
-specpool(spp[s,])
-
-rarecurve(spp)
-plot(specaccum(spp))
-
-
-
-
-sp1 <- specaccum(spp)
-sp2 <- specaccum(spp, "random")
-sp2
-summary(sp2)
-plot(sp1)
-boxplot(sp1, col="yellow", add=TRUE, pch="+")
-
+# 
+# 
+# sp1 <- specaccum(spp)
+# sp2 <- specaccum(spp, "random")
+# sp2
+# summary(sp2)
+# plot(sp1)
+# boxplot(sp1, col="yellow", add=TRUE, pch="+")
+# 
 
 # 
 # diversity(spp, index="shannon")
@@ -219,7 +253,7 @@ boxplot(sp1, col="yellow", add=TRUE, pch="+")
 # 
 # # Species summaries
 # #------------------
-# #sppFinal <- spp.freq(speciesObs=spp, speciesLut=luTbl, samplingUnits=nUnits)
+# #
 # 
 # # Top and bottom 20 species
 # top20 <- sppFinal %>%

@@ -47,9 +47,10 @@ spp.freq <- function(speciesObs){
   # Determine the frequency of occurence throughout all dive sites
   sppCnts$Counts[is.na(sppCnts$Counts)] <- 0   # Set any NA values to 0
   sppCnts$Freq <- round( sppCnts$Counts/nrow(spp), digits=3 )  # Number of sampling units = nUnits
-  # Arrange in correct order 
+  # Arrange in correct order & rank
   sppCnts <- dplyr::select(sppCnts, Species_Code, Counts, Freq)
   sppCnts <- sppCnts[order(-sppCnts$Freq),]
+  sppCnts$Rank <- seq.int(nrow(sppCnts))
   sppCnts[is.na(sppCnts)] <- " "
   return(sppCnts)
 }
