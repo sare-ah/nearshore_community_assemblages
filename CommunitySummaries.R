@@ -29,6 +29,7 @@ dsn <- "SHP"
 # Read in species by regions
 #---------------------------
 sppByRegion <- readRDS("C:/Users/daviessa/Documents/R/PROJECTS_MY/DiveSurveys_DataPrep/Data/RDS/sppByRegion.rds")
+sppDF <- readRDS("C:/Users/daviessa/Documents/R/PROJECTS_MY/DiveSurveys_DataPrep/Data/RDS/sppByRegion_Dataframe.rds")
 
 # Get path for this script
 #-------------------------
@@ -91,25 +92,25 @@ for (i in 1:length(sppByRegion)){
 richness <- map(summariesByRegion, "sppRichness")
 str(richness)
 
-# Plot summaries
-par(mfrow = c(1, 1))  # Set up a 1 x 1 plotting space
-jpeg(file="NumSppSamplingUnit.jpeg")
-  boxplot(richness, ylab="Count of Species")
-dev.off()
-
 # Flatten list into a dataframe to assess differences between regions
 flat1 <- map(map_if(richness,~class(.x)=="matrix",list),~map(.x,as.data.frame))
 flat2 <- map_dfr(flat1,~map_dfr(.x,identity,.id="TransDepth"),identity,.id="region")
 colnames(flat2)[3] <- "spCnt"
 head(flat2)
-# To do: to at bind_rows()
 
-# To do: Make figure prettier
-ggplot(flat2, aes(x=region,
-                     y=spCnt)) +
+# Plot summaries
+par(mfrow = c(1, 1))  # Set up a 1 x 1 plotting space
+#boxplot(richness, ylab="Count of Species")
+p <- ggplot(flat2, aes(x=region, y=spCnt)) +
   geom_boxplot(notch = T,
-               fill = "blue", 
-               alpha = 0.7) 
+               fill = "cornflowerblue", 
+               alpha = 0.7) +
+  ylab("Count of Species") +
+  xlab("Region") +
+  scale_y_continuous(breaks=seq(0,60,by=10))+
+  theme_bw()
+p
+ggsave("CountOfSpeciesByRegion.png", p)
 
 # Summary table
 nUnitsSum <- flat2 %>%
@@ -187,9 +188,7 @@ p <- ggplot(rank, aes(x=Rank, y=Freq)) +
   ylab("Frequency of Occurrence") +
   xlab("Rank of Species") +
   facet_wrap( ~ Region)
-
-# Save output - to do: play with resolution, background
-# https://stat545.com/save-figs.htmlggsave("RankOfSpecies.png",p)
+ggsave("RankOfSpecies.png", p)
 
 # ...by invert and by algae
 invert <- dplyr::filter(foo1, grepl("I_", Species_Code) )
@@ -208,55 +207,83 @@ p <- ggplot(algae, aes(x=Rank, y=Freq)) +
   facet_wrap( ~ Region)
 ggsave("AlgaeRanks.png", p)
 
+# Top and bottom 20 species for each region
+# top20 | HG.spCde | NCC.spCde | QCS.spCde | SoG.spCde
+head(foo1)
 
-### TO DO ###
-### Top and bottom 20 species for each region???
-# top20 <- sppFinal %>%
-#   arrange(desc(Freq)) %>%
-#   slice(1:20)
-# top20
-# sppFinal <- dplyr::filter(sppFinal, Freq!=0)
-# a <- nrow(sppFinal)
-# b <- a -19
-# bottom20 <- sppFinal %>%
-#   arrange(desc(Freq)) %>%
-#   slice(b:a)
-# bottom20
+# Select rows and columns of interest
+top20 <- dplyr::filter(foo1, Rank<21 )
+top20 <- dplyr::select(top20, Region, Species_Code, Rank)
+# Create pivot table
+top20 <- top20 %>%
+  pivot_wider(names_from = Region,
+              values_from = Species_Code)
+head(top20)
+# Save output
+outfile <- paste(getwd(),"Top20_byRegion.csv",sep="/")
+write_csv(top20, outfile)
+
+# bottom20 | HG.spCde | NCC.spCde | QCS.spCde | SoG.spCde
+# Select rows and columns of interest
+bot20 <- dplyr::filter(foo1, Rank>149 )
+bot20 <- dplyr::select(bot20, Region, Species_Code, Rank)
+# Create pivot table
+bot20 <- bot20 %>%
+  pivot_wider(names_from = Region,
+              values_from = Species_Code)
+head(bot20)
+# Save output
+#outfile <- paste(getwd(),"Bottom20_byRegion.csv",sep="/")
+#write_csv(bot20, outfile)
+
 
 # --- Depth range summaries --- #
+# Start with sppDF RDS
+head(sppDF,3)
+# Recreate the depth category field and remove the transect HKey
+df <- separate(sppDF, TransDepth, c(NA,"DepthCat"))
+head(df,3)
+# Melt dataframe to long format
+dCat <- df %>%
+  pivot_longer(
+    cols = -c(DepthCat, Region),
+               names_to = "species",
+               values_to = "presence")
+# Remove absences
+dCat <- dplyr::filter(dCat, presence!=0)
+# Separate inverts and algae
+algae.dc <- dplyr::filter(dCat, grepl("A_", species) )
+# Remove duplicate records
+algae.dc <- unique(algae.dc)
+# Get rid of A_prefix
+algae.dc <- separate(algae.dc, species, c(NA,"algae"))
+head(algae.dc)
+# Plot and save
+p <- ggplot(algae.dc, aes(x=as.numeric(DepthCat),y=reorder(algae,desc(algae)))) +
+        #geom_bar(stat = "identity",colour="blue", width=0.5) +
+        geom_line(linetype="solid", colour="blue") +
+        #geom_point(colour="blue") +
+        #theme_bw() +
+        facet_grid( ~ Region) +
+        theme(panel.grid.major.y = element_line(colour = "grey60",linetype = "dashed")) +
+        xlab("Depth Category") +
+        ylab("Algae code")
+ggsave("AlgaeDepthCat_byRegion.png", p)  
 
-# Steps
-# 1. Need to get Species_Code and Depth Cat (can use TransDepth) from sppByRegion
+# Repeat for invertebrates
+invert.dc <- dplyr::filter(dCat, grepl("I_", species) )
+invert.dc <- unique(invert.dc)
+invert.dc <- separate(invert.dc, species, c(NA,"invert"))
+head(invert.dc)
+p <- ggplot(invert.dc, aes(x=as.numeric(DepthCat),y=reorder(invert,desc(invert)))) +
+  geom_line(linetype="solid", colour="blue") +
+  facet_grid( ~ Region ) +
+  xlab("Depth Category") +
+  ylab("Invertebrate code") +
+  theme(panel.grid.major.y = element_line(colour = "grey60",linetype = "dashed")) +
+  theme(axis.text.y = element_text(face = "bold", size = 5))
+ggsave("InvertDepthCat_byRegion.png", p)  
 
-
-
-# # Subset 
-# dCat <- dplyr::select(matFull, c(13,17:185))
-# 
-# # Melt dataframe
-# dCat <- dRng %>%
-#   pivot_longer(-DepthCat,
-#                names_to = "species",
-#                values_to = "presence")
-# 
-# dCat <- dplyr::filter(dCat, presence!=0)
-# 
-# # Plot and save
-# # Plot is incorrect! Should be a histogram with species along x-axis & categories along the y-axis
-# # May want to separate by inverts and algae for easier reading
-# ggplot(dCat, aes(x=DepthCat,y=reorder(species,desc(species))))+
-#   geom_line(colour="blue") +
-#   theme_bw() +
-#   scale_x_continuous(breaks=seq(-8,20,by=1))+
-#   labs(x="Depth Category")+
-#   theme(axis.title.y=element_blank(),
-#         axis.text.y = element_text(face="italic"),
-#         panel.grid.major.x = element_blank(),
-#         panel.grid.minor.y = element_blank(),
-#         panel.grid.major.y = element_line(colour = "grey60",linetype = "dashed"))
-# filename <- paste0(region,".DepthCategories")
-# ggsave(file=paste0(outdir,filename,'.pdf',sep=''))
-# 
 
 
 
