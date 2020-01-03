@@ -60,7 +60,7 @@ getwd()
 # head(matFull,3)
 
 # Look-up table to match species codes to latin names
-#luTbl <- read.csv( "T:/Benthic_Habitat_Mapping/Data/Look-upTbls/SpeciesLookUpTbl.csv", header=T, sep=",", stringsAsFactors=F )
+luTbl <- read.csv( "T:/Benthic_Habitat_Mapping/Data/Look-upTbls/SpeciesLookUpTbl.csv", header=T, sep=",", stringsAsFactors=F )
 
 # Summaries
 #----------
@@ -102,6 +102,7 @@ flat1 <- map(map_if(richness,~class(.x)=="matrix",list),~map(.x,as.data.frame))
 flat2 <- map_dfr(flat1,~map_dfr(.x,identity,.id="TransDepth"),identity,.id="region")
 colnames(flat2)[3] <- "spCnt"
 head(flat2)
+# To do: to at bind_rows()
 
 # To do: Make figure prettier
 ggplot(flat2, aes(x=region,
@@ -158,28 +159,111 @@ for (i in 1:length(summariesByRegion)){
   foo[[i]] <- summariesByRegion[[i]]$sppFreq
 }
 
+# Create large dataframe with containing all regions
+foo1 <- bind_rows(foo,.id="Region")
+head(foo1)
 
-  
-  
-i.Final <- dplyr::filter(sppFinal, grepl("I_", Species_Code) )
-a.Final <- as.data.frame(dplyr::filter(sppFinal, grepl("A_", Species_Code) ))
-a.Final <- a.Final %>% 
-  arrange(desc(Freq)) %>%
-  rownames_to_column(var="Rank") 
+# Frequency of Occurrence table (Species Code | HG | NCC | QCS | SoG)
+foo2 <- dplyr::select(foo1, Region, Species_Code, Freq)
+foo2 <- foo2 %>%
+  pivot_wider(names_from = Region,
+              values_from = Freq) %>%
+  arrange(Species_Code) 
+head(foo2)
 
-a.Final$Rank = as.numeric(a.Final$Rank )
+# Add species names and save
+foo2 <- right_join(luTbl, foo2, by="Species_Code")
+foo2 <- dplyr::select(foo2, Name, Species_Code, HG, NCC, QCS, SoG)
 
-  
-head(a.Final)
+outfile <- paste(getwd(),"FreqOfOccurence_byRegion.csv",sep="/")
+write_csv(foo2, outfile)
+
+# --- Species Rank Plots --- #
+rank <- dplyr::select(foo1, Region, Freq, Rank)
+
+# Plot
+p <- ggplot(rank, aes(x=Rank, y=Freq)) +
+  geom_bar(stat="identity", color = "steelblue") +
+  ylab("Frequency of Occurrence") +
+  xlab("Rank of Species") +
+  facet_wrap( ~ Region)
+
+# Save output - to do: play with resolution, background
+# https://stat545.com/save-figs.htmlggsave("RankOfSpecies.png",p)
+
+# ...by invert and by algae
+invert <- dplyr::filter(foo1, grepl("I_", Species_Code) )
+p <- ggplot(invert, aes(x=Rank, y=Freq)) +
+  geom_bar(stat="identity", color = "steelblue") +
+  ylab("Frequency of Occurrence") +
+  xlab("Rank of Invertebrate Species") +
+  facet_wrap( ~ Region)
+ggsave("InvertRanks.png", p)
+
+algae <- dplyr::filter(foo1, grepl("A_", Species_Code) )
+p <- ggplot(algae, aes(x=Rank, y=Freq)) +
+  geom_bar(stat="identity", color = "steelblue") +
+  ylab("Frequency of Occurrence") +
+  xlab("Rank of Algae Species") +
+  facet_wrap( ~ Region)
+ggsave("AlgaeRanks.png", p)
 
 
-# --- Species rank --- #
-ggplot(a.Final, aes(x = Rank, y = Freq)) +
-  geom_bar(stat="identity")
+### TO DO ###
+### Top and bottom 20 species for each region???
+# top20 <- sppFinal %>%
+#   arrange(desc(Freq)) %>%
+#   slice(1:20)
+# top20
+# sppFinal <- dplyr::filter(sppFinal, Freq!=0)
+# a <- nrow(sppFinal)
+# b <- a -19
+# bottom20 <- sppFinal %>%
+#   arrange(desc(Freq)) %>%
+#   slice(b:a)
+# bottom20
+
+# --- Depth range summaries --- #
+
+# Steps
+# 1. Need to get Species_Code and Depth Cat (can use TransDepth) from sppByRegion
 
 
 
-#///////////////#
+# # Subset 
+# dCat <- dplyr::select(matFull, c(13,17:185))
+# 
+# # Melt dataframe
+# dCat <- dRng %>%
+#   pivot_longer(-DepthCat,
+#                names_to = "species",
+#                values_to = "presence")
+# 
+# dCat <- dplyr::filter(dCat, presence!=0)
+# 
+# # Plot and save
+# # Plot is incorrect! Should be a histogram with species along x-axis & categories along the y-axis
+# # May want to separate by inverts and algae for easier reading
+# ggplot(dCat, aes(x=DepthCat,y=reorder(species,desc(species))))+
+#   geom_line(colour="blue") +
+#   theme_bw() +
+#   scale_x_continuous(breaks=seq(-8,20,by=1))+
+#   labs(x="Depth Category")+
+#   theme(axis.title.y=element_blank(),
+#         axis.text.y = element_text(face="italic"),
+#         panel.grid.major.x = element_blank(),
+#         panel.grid.minor.y = element_blank(),
+#         panel.grid.major.y = element_line(colour = "grey60",linetype = "dashed"))
+# filename <- paste0(region,".DepthCategories")
+# ggsave(file=paste0(outdir,filename,'.pdf',sep=''))
+# 
+
+
+
+####################################################
+################ Extra Junk ########################
+####################################################
+
 # fix plot, add jittered points
 
 # p <- ggplot(richlist) + 
@@ -211,20 +295,13 @@ ggplot(a.Final, aes(x = Rank, y = Freq)) +
 # ggplot(lst, aes(x = richness, y = y)) +
 #   geom_boxplot()
 
-
-
-
-####
-
 # S <- specnumber(spp) # observed number of species
 # raremax <- min(rowSums(t(spp)))
 # Srare <- rarefy(t(spp), raremax)
 # plot(S, Srare, xlab = "Observed No. of Species", ylab = "Rarefied No. of Species")
 # abline(0, 1)
 # rarecurve(t(spp), step = 2, sample = raremax, col = "blue", cex = 0.6)
-# 
-# 
-# 
+ 
 # specpool(spp)
 # s <- sample(nrow(spp), 500)
 # specpool(spp[s,])
@@ -232,71 +309,23 @@ ggplot(a.Final, aes(x = Rank, y = Freq)) +
 # rarecurve(spp)
 # plot(specaccum(spp))
 
-
-# 
-# 
 # sp1 <- specaccum(spp)
 # sp2 <- specaccum(spp, "random")
 # sp2
 # summary(sp2)
 # plot(sp1)
 # boxplot(sp1, col="yellow", add=TRUE, pch="+")
-# 
 
 # 
 # diversity(spp, index="shannon")
 # # To Do: Add map of sites
-# 
+
 # data(BCI)
 # H <- diversity(BCI)
 # simp <- diversity(BCI, "simpson")
 # 
-# # Species summaries
-# #------------------
-# #
+
 # 
-# # Top and bottom 20 species
-# top20 <- sppFinal %>%
-#   arrange(desc(Freq)) %>%
-#   slice(1:20)
-# top20
-# sppFinal <- dplyr::filter(sppFinal, Freq!=0)
-# a <- nrow(sppFinal)
-# b <- a -19
-# bottom20 <- sppFinal %>%
-#   arrange(desc(Freq)) %>%
-#   slice(b:a)
-# bottom20
-# 
-# 
-# # Depth range summaries
-# #----------------------
-# # Subset 
-# dCat <- dplyr::select(matFull, c(13,17:185))
-# 
-# # Melt dataframe
-# dCat <- dRng %>%
-#   pivot_longer(-DepthCat,
-#                names_to = "species",
-#                values_to = "presence")
-# 
-# dCat <- dplyr::filter(dCat, presence!=0)
-# 
-# # Plot and save
-# # Plot is incorrect! Should be a histogram with species along x-axis & categories along the y-axis
-# # May want to separate by inverts and algae for easier reading
-# ggplot(dCat, aes(x=DepthCat,y=reorder(species,desc(species))))+
-#   geom_line(colour="blue") +
-#   theme_bw() +
-#   scale_x_continuous(breaks=seq(-8,20,by=1))+
-#   labs(x="Depth Category")+
-#   theme(axis.title.y=element_blank(),
-#         axis.text.y = element_text(face="italic"),
-#         panel.grid.major.x = element_blank(),
-#         panel.grid.minor.y = element_blank(),
-#         panel.grid.major.y = element_line(colour = "grey60",linetype = "dashed"))
-# filename <- paste0(region,".DepthCategories")
-# ggsave(file=paste0(outdir,filename,'.pdf',sep=''))
 # 
 # 
 # # Plot on a map
