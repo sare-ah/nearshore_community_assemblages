@@ -34,7 +34,7 @@ library(tidyverse)
 #-------
 
 date <- format(Sys.Date(), "%b_%d")
-region <- "QCS"
+region <- "ALL"
 outdir <- paste0(date,"_",region)
 dsn <- "SHP"
 spThreshold <- 0.03 # Proportion of sites that a species must be found in
