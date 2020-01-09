@@ -41,13 +41,13 @@ spThreshold <- 0.03 # Proportion of sites that a species must be found in
 siteThreshold <- 3 # Minimum number of species / site
 distance <- "simpson"
 clusterMethod <- "ward.D2" 
-seth <- 2.5 # number for cutoff height
+seth <- 6 # number for cutoff height
 nTopClusters <- 5 #integer for number of clusters
 
 # Site by Species csv file
 # myFile <- choose.files(default = "T:/Benthic_Habitat_Mapping/Data",
 #                        caption = "Select site X species, with enviromental variables") 
-myFile <- "T:/Benthic_Habitat_Mapping/Data/Species by Site Matrices/qcsbyDepthCat_AllSpp.csv"
+myFile <- "T:/Benthic_Habitat_Mapping/Data/Species by Site Matrices/AllRegionsbyDepthCat_AllSpp.csv"
 
 
 # Get path for this script
@@ -82,7 +82,7 @@ head(matFull,3)
 
 # Organize data into species & env
 #---------------------------------
-# Checks for complete recordset
+# Checks for complete recordset **** Why do I need to do this here? What is incorrect with the data?
 matFull <- unique(matFull)
 matFull <- dplyr::filter(matFull, x!=0)
 
@@ -90,7 +90,7 @@ matFull <- dplyr::filter(matFull, x!=0)
 rownames(matFull) <- matFull$TransDepth
 
 # Divide columns into species and environmental variabls
-species <- names(matFull)[c(17:185)] # specify species columns, if different
+species <- names(matFull)[c(10:179)] # specify species columns, if different
 species
 envVar <- names(matFull)[c(3:16)] # specify enviro columns, if different
 envVar
@@ -146,11 +146,13 @@ benthtree <- hclust( dist, method=clusterMethod )
 cor( dist, cophenetic(benthtree) )
 
 # Plot clusters
+#par(mfrow = c(1, 1))
 plot( benthtree, hang=-1 )
 
 # Choose cutoff, play with h until the visual clusters are kept together
 # Set h (height) for the dendrogram and cut the tree
 #seth <- readline(prompt = "Set height for the dendrogram and cut the tree: ")
+seth <- 7
 
 rect.hclust(benthtree, h=seth, border="red") # Cutoff based on visual inspection of the tree
 

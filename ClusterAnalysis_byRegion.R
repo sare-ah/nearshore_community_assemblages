@@ -1,5 +1,7 @@
 #######################################################################################################################
 # Cluster analysis of Benthic Habitat Mapping Dive Survey Sites
+#
+# To do: change loops to lapply statements 
 
 
 # Start fresh
@@ -131,39 +133,135 @@ for (i in 1:length(sppByRegion)){
 # 
 # saveRDS( sppSiteList, "sppSiteList.rds" ) 
 
+rm(barrenSites,rareSpp,sppByRegion,sppDF)
 
-# --- Cluster analyis and buid dendrogram --- #
-
+# --- Run cluster analysis and build dendrogram --- #
+# Create empty list to store results
 myCluster <- vector("list", 4)
 
+# Run cluster analysis
 for (i in 1:length(prep4Cluster)){
   # Get region name
   names(myCluster)[[i]] <- names(prep4Cluster)[i]
+  print(names(myCluster)[[i]])
   spp <- as.data.frame(prep4Cluster[[i]])
   # Calculate B-sim (simpson) distance on the site x species matrix
   myCluster[[i]]$dist <- sim( spp,  method=distance )
   # Create dendrogram, using average grouping
   myCluster[[i]]$benthtree <- hclust( myCluster[[i]]$dist, method=clusterMethod ) 
+  #plot( myCluster[[i]]$benthtree, hang=-1 )
   # Calculate cophenetic correlation value
   # how well does the dendrogram correlate with the original data?
   myCluster[[i]]$cophenetic <- cor( myCluster[[i]]$dist, cophenetic(myCluster[[i]]$benthtree) )
   print(myCluster[[i]]$cophenetic)
 }
 
-# Calculate B-sim (simpson) distance on the site x species matrix
-dist <- sim( forCl,  method=distance )
+# Plot and save dendrograms as png and as separate objects to play with cutoffs
+for (i in 1:length(myCluster)){
+  print(names(myCluster)[[i]])
+  region <- names(myCluster)[[i]]
+  file_name = paste("dendrogram_", region, ".png", sep="")
+  title_name = paste(region,"Cluster Dendrogram", sep=" ")
+  png(file_name)
+  plot(myCluster[[i]]$benthtree, hang=-1, main=region)
+  dev.off()
+}
 
-# Create dendrogram, using average grouping
-benthtree <- hclust( dist, method=clusterMethod )
+# --- Manually choose heights to cut trees --- #
 
-# Calculate cophenetic correlation value
-# how well does the dendrogram correlate with the original data?
-cor( dist, cophenetic(benthtree) )
+hg <- myCluster$HG$benthtree # seth = 4
+ncc <- myCluster$NCC$benthtree # seth = 5
+qcs <- myCluster$QCS$benthtree # seth = 2
+sog <- myCluster$SoG$benthtree # seth = 2
 
-# Plot clusters
-plot( benthtree, hang=-1 )
+benthtree <- sog
+plot(benthtree, hang=-1)
+
+# Choose cutoff, play with h until the visual clusters are kept together
+# Set h (height) for the dendrogram and cut the tree
+#seth <- readline(prompt = "Set height for the dendrogram and cut the tree: ")
+seth <- 2
+rect.hclust(benthtree, h=seth, border="red") # Cutoff based on visual inspection of the tree
+
+hts <- c(4,5,2,2)
+
+# Final h choice
+cl.hg <- dendroextras::slice(myCluster$HG$benthtree, h=hts[1]) # Cut tree
+cl.ncc <- dendroextras::slice(myCluster$NCC$benthtree, h=hts[2]) # Cut tree
+cl.qcs <- dendroextras::slice(myCluster$QCS$benthtree, h=hts[3]) # Cut tree
+cl.sog <- dendroextras::slice(myCluster$SoG$benthtree, h=hts[4]) # Cut tree
+
+cl.list <- list(cl.hg,cl.ncc,cl.qcs,cl.sog)
+
+# --- Determine number of clusters to capture 90% of samples --- #
+# Get table of cluster memberships - number of sites in each cluster
+# lapply(list, function)
+
+# Convert list element to a dataframe
+make_df <- function(x){
+  as.data.frame(table(x))
+}
+colorcount <- lapply(cl.list, make_df )
+names(colorcount) <- names(myCluster)
+colorcount
+# cl Freq
+# 1  1  652
+# 2  2  878
+# 3  3  781
+# 4  4 1281
+
+# Order clusters by frequency order 
+order.cl <- function(x){
+  order <- data.frame( order=seq( 1:nrow(x) ),x[order(-x$Freq),] ) 
+  order$cumsum <- cumsum( order$Freq )
+  order$cumpercent <- round( order$cumsum/max(order$cumsum), 2 )
+  order$percent <- round( order$Freq/sum(order$Freq),2 )
+  #plot( order$order, order$Freq, ylab="n Samples" )
+  #plot( order$order, order$cumpercent )
+  #abline( h=0.9, col="red" ) 
+  return(order)
+}
+par(mfrow = c(2, 2))
+cluster.frq <- lapply(colorcount, order.cl)
+cluster.frq
+# order cl Freq cumsum cumpercent percent
+# 4     1  4 1281   1281       0.36    0.36
+# 2     2  2  878   2159       0.60    0.24
+# 3     3  3  781   2940       0.82    0.22
+# 1     4  1  652   3592       1.00    0.18
+
+# Number of clusters that capture 90% of samples
+nTopClusters <- 5
+
+# Select the main clusters to be carried foward thru the analysis
+# Clusters with very few samples are not very meaningful and are dropped
+
+whichCluster <- function(x){
+  clusters <- cluster.frq[[i]]$cl[cluster.frq[[i]]$order %in% c( 1:nTopClusters )]
+}
+
+clToInclude <- lapply(cluster.frq, whichCluster)
+
+# Select n clusters to be color-coded
+clToInclude <- order$cl[order$order %in% c( 1:nTopClusters )]
 
 
+#
+# Set colours for each cluster
+colorscheme <- myColors(nTopClusters)
+colorcount$assigned <- NULL
+for (i in c(1:nTopClusters)){
+  colorcount$assigned[colorcount$cl==clToInclude[i]] <- colorscheme[i]
+}
+
+# Each selected cluster is assigned a color, NA's assigned to grey
+table(colorcount$assigned)
+colorcount$assigned[is.na(colorcount$assigned)] <- "grey"
+
+
+
+
+#===========================================#
 
 # Extract richness values
 richness <- map(summariesByRegion, "sppRichness")
