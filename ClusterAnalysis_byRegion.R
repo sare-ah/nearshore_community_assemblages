@@ -18,6 +18,7 @@ library(scales)
 library(mapview)
 library(rgdal)
 library(sp)
+library(sf)
 library(dendextend)
 library(rstudioapi)
 library(tidyverse)
@@ -28,25 +29,21 @@ library(tidyverse)
 date <- format(Sys.Date(), "%b_%d")
 region <- "All"
 outdir <- paste0(date,"_",region)
-dsn <- "SHP"
+dsn.dir <- "SHP"
 
 spThreshold <- 0.03 # Proportion of sites that a species must be found in
 siteThreshold <- 3 # Minimum number of species / site
 distance <- "simpson"
 clusterMethod <- "ward.D2" 
-# seth <- 4 # number for cutoff height
-# nTopClusters <- 5 #integer for number of clusters
-
-
-# Site by Species csv file
-# myFile <- choose.files(default = "T:/Benthic_Habitat_Mapping/Data",
-#                        caption = "Select site X species, with enviromental variables") 
-# myFile <- "T:/Benthic_Habitat_Mapping/Data/Species by Site Matrices/qcsbyDepthCat_AllSpp.csv"
 
 # Read in species by regions
 #---------------------------
 sppByRegion <- readRDS("C:/Users/daviessa/Documents/R/PROJECTS_MY/DiveSurveys_DataPrep/Data/RDS/sppByRegion.rds")
-sppDF <- readRDS("C:/Users/daviessa/Documents/R/PROJECTS_MY/DiveSurveys_DataPrep/Data/RDS/sppByRegion_Dataframe.rds")
+
+# Read in spatialized points
+#---------------------------
+dsn <- "C:/Users/daviessa/Documents/R/PROJECTS_OTHERS/SpatializeDiveTransects/ByDepthCat"
+sp <- readOGR(dsn=dsn, layer="All_SpatPts_DepthCat", stringsAsFactors = F)
 
 # Get path for this script
 #-------------------------
@@ -67,19 +64,13 @@ if (dir.exists(outdir)){
 } else{
   dir.create(path = outdir)
   setwd(outdir)
-  dir.create(dsn)
+  dir.create(dsn.dir)
 }
 getwd()
 
-
-# Import data
-# -----------
-# # Format is 1 row per sample (depth bin), with columns for species and environmental variables 
-# matFull <- read.csv(myFile, header=T, sep=",", stringsAsFactors = F)
-# head(matFull,3)
-
-# Look-up table to match species codes to latin names
-#luTbl <- read.csv( "T:/Benthic_Habitat_Mapping/Data/Look-upTbls/SpeciesLookUpTbl.csv", header=T, sep=",", stringsAsFactors=F )
+# Create spatialized points link
+#-------------------------------
+sp.pts <- cbind(sp@data,sp@coords)
 
 # Cluster Analysis
 #-----------------
@@ -114,27 +105,46 @@ for (i in 1:length(sppByRegion)){
 # Outputs: Figure of barren sites
 # Save as ? RDS, shp, csv
 
-# # Keep all species
-# forCl <- as.data.frame( sppSiteList[1] ) 
-# 
 # # Remove rare species
 # remSp <- as.data.frame( sppSiteList[2] ) 
 # as.character( remSp$species )
 # write_csv( remSp, paste0(region,"_SpeciesRemoved.csv" ))
 # 
-# # Remove barren sites
-# remSites <- as.data.frame( sppSiteList[3] ) 
-# colnames(remSites) <- c( "TransDepth","SpCnt" )
-# remSites$TransDepth <- as.character(remSites$TransDepth)
-# remSites <- left_join( remSites, matFull, by="TransDepth" )
-# remSites[1,1:6] # confirm that position columns are named x,y
-# layer <- paste0(region,"_SitesRemoved" )
-# remSites <- makeShp( data=remSites, dsn=dsn, layer=layer )
-# mapview(remSites, zcol="SpCnt")
-# 
-# saveRDS( sppSiteList, "sppSiteList.rds" ) 
 
-rm(barrenSites,rareSpp,sppByRegion,sppDF,listOfLists)
+# --- Plot rare species and barren sites from each region --- #
+
+# Plot barren sites
+# list <- unlist(barrenSites, recursive = FALSE)
+# barren <- do.call("rbind", list)
+
+# Extract richness values
+richness <- map(barrenSites)#, "sppRichness")
+str(richness)
+
+# How to map from a list of dataframes
+df <- map_df(barrenSites, function(.x){
+  return(data.frame(.x))
+} )
+
+# Flatten list into a dataframe to assess differences between regions
+flat1 <- map(map_if(barrenSites,~class(.x)=="matrix",list),~map(.x,as.data.frame))
+barren <- map_dfr(flat1,~map_dfr(.x,identity,.id="TransDepth"),identity,.id="region")
+colnames(barren)[3] <- "spCnt"
+head(barren)
+
+head(barren)
+colnames(barren) <- c("TransDepth","spCnt")
+barren$TransDepth <- as.character(barren$TransDepth)
+barren <- left_join( barren, sp.pts, by="TransDepth" )
+barren <- drop_na(barren)
+# Make sf and plot
+barren_sf <- st_as_sf(barren, coords = c("coords.x1","coords.x2"), crs = 3005) # BC Albers 
+# As "Spatial" - if you need to save as a shp
+#barren_sp <- as(barren_sf, "Spatial")
+mapview(barren_sf, zcol = "spCnt", legend = TRUE) 
+
+
+rm(barrenSites,rareSpp,sppByRegion,listOfLists)
 
 # --- Run cluster analysis and build dendrogram --- #
 # Create empty list to store results
@@ -186,13 +196,14 @@ for (i in 1:length(myCluster)){
 # rect.hclust(benthtree, h=seth, border="red") # Cutoff based on visual inspection of the tree
 
 # Vector to entry heights from plots
-# hts <- c(4,5,2,2)
+hts <- c(4,5,2,2) # corresponds to HG,NCC,QCS,SoG
 
 # Add height to large list
-myCluster$HG$height <- 4 # Height on y-axis
-myCluster$NCC$height <- 5
-myCluster$QCS$height <- 2
-myCluster$SoG$height <- 2
+for (i in 1:length(myCluster)){
+  myCluster[[i]]$height <- hts[i] 
+}
+
+# --- Slice trees --- #
 
 # Final h choice to slice tree 
 for (i in 1:length(myCluster)){
@@ -201,9 +212,12 @@ for (i in 1:length(myCluster)){
   myCluster[[i]]$sliceTree <- dendroextras::slice(x=myCluster[[i]]$benthtree, h=myCluster[[i]]$height)
 }
 
-# Build list of sliced trees
-cl.list=list(list(c(myCluster$HG$sliceTree)),list(c(myCluster$NCC$sliceTree)),list(c(myCluster$QCS$sliceTree)),list(c(myCluster$SoG$sliceTree)))
-names(cl.list) <- names(myCluster)
+# Build a new list of sliced trees
+cl.list <- vector("list",4)
+for (i in 1:length(myCluster)){
+  names(cl.list)[i] <- names(myCluster)[i]
+  cl.list[[i]] <- myCluster[[i]]$sliceTree
+}
 
 # --- Determine number of clusters to capture 90% of samples --- #
 # Get table of cluster memberships - number of sites in each cluster
@@ -214,7 +228,6 @@ make_df <- function(x){
   as.data.frame(table(x))
 }
 colorcount <- lapply(cl.list, make_df )
-#names(colorcount) <- names(myCluster)
 c.names <- c("cl","Freq")
 colorcount <- lapply(colorcount, setNames, c.names)
 colorcount
@@ -225,77 +238,41 @@ order.cl <- function(x){
   order$cumsum <- cumsum( order$Freq )
   order$cumpercent <- round( order$cumsum/max(order$cumsum), 2 )
   order$percent <- round( order$Freq/sum(order$Freq),2 )
-  #plot( order$order, order$Freq, ylab="n Samples" )
-  # plot( order$order, order$cumpercent )
-  # abline( h=0.9, col="red" ) 
+  plot( order$order, order$Freq, ylab="n Samples" )
+  plot( order$order, order$cumpercent )
+  abline( h=0.9, col="red" )
   return(order)
 }
-par(mfrow = c(2, 2))
+par(mfrow = c(2,2))
 cluster.frq <- lapply(colorcount, order.cl)
 cluster.frq
+par(mfrow = c(1,1))
 
 # Number of clusters that capture 90% of samples
-#nTopClusters <- c(5,4,5,4)
+nTopClusters <- list(5,4,5,4)
+buildseq <- function(x){
+  seq(1,(x),by=1)
+}
+myTopClusters <- lapply(nTopClusters,buildseq )
+myTopClusters
 
-# Could not get %in% to work for elements within a list, so here goes some ugly code!
-hg <- cluster.frq$HG
-ncc <- cluster.frq$NCC
-qcs <- cluster.frq$QCS
-sog <- cluster.frq$SoG
+# Assign colours to clusters
+for (i in 1:length(cluster.frq)){
+  clusters <- cluster.frq[[i]]$cl[cluster.frq[[i]]$order %in% myTopClusters[[i]] ]
+  colorscheme <- myColors(max(myTopClusters[[i]]) )
+  df <- colorcount[[i]]
+  df <- dplyr::arrange(df, desc(Freq)) 
+  df <- dplyr::mutate(df, assigned=ifelse(cl%in%clusters,colorscheme,"grey"))
+  df <- dplyr::arrange(df, cl)
+  myCluster[[i]]$colours <- df
+  df <- NULL
+}
 
-#HG
-hg.cluster <- hg$cl[hg$order %in% c( 1:5 )] 
-colorscheme <- myColors(5)
-colorHG <- colorcount$HG
-for (i in c(1:5)){
-  colorHG$assigned[colorHG$cl==hg.cluster[i]] <- colorscheme[i]
-}
-table(colorHG$assigned)
-colorHG$assigned[is.na(colorHG$assigned)] <- "grey"
-colorHG
-#NCC
-ncc.cluster <- ncc$cl[ncc$order %in% c( 1:4 )] 
-colorscheme <- myColors(4)
-colorNCC <- colorcount$NCC
-for (i in c(1:4)){
-  colorNCC$assigned[colorNCC$cl==ncc.cluster[i]] <- colorscheme[i]
-}
-table(colorNCC$assigned)
-colorNCC$assigned[is.na(colorNCC$assigned)] <- "grey"
-colorNCC
-#QCS
-qcs.cluster <- qcs$cl[qcs$order %in% c( 1:5 )] 
-colorscheme <- myColors(5)
-colorQCS <- colorcount$QCS
-for (i in c(1:5)){
-  colorQCS$assigned[colorQCS$cl==qcs.cluster[i]] <- colorscheme[i]
-}
-table(colorQCS$assigned)
-colorQCS$assigned[is.na(colorQCS$assigned)] <- "grey"
-colorQCS
-#SoG
-sog.cluster <- sog$cl[sog$order %in% c( 1:4 )] 
-colorscheme <- myColors(4)
-colorSoG <- colorcount$SoG
-for (i in c(1:4)){
-  colorSoG$assigned[colorSoG$cl==sog.cluster[i]] <- colorscheme[i]
-}
-table(colorSoG$assigned)
-colorSoG$assigned[is.na(colorSoG$assigned)] <- "grey"
-colorSoG
-
-# Add colour assignments back to myCluster list
-# There must be a better way than this
-myCluster$HG$colours <- colorHG
-myCluster$NCC$colours <- colorNCC
-myCluster$QCS$colours <- colorQCS
-myCluster$SoG$colours <- colorSoG
-rm(colorHG,colorNCC,colorQCS,colorSoG,sog,qcs,ncc,hg
-   )
+myList <- myCluster
 
 # --- Create color-coded dendrogram....slow... --- #
-colourTree <- vector("list",4)
-
+#colourTree <- vector("list",4)
+par(mfrow = c(2,2))
 # Create coloured trees
 for (i in 1:length(myCluster)){
   main <- names(myCluster)[[i]]
