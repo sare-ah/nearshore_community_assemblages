@@ -111,27 +111,21 @@ for (i in 1:length(sppByRegion)){
 # write_csv( remSp, paste0(region,"_SpeciesRemoved.csv" ))
 # 
 
-# --- Plot rare species and barren sites from each region --- #
+# --- Examine rare species and plot barren sites from each region --- #
+
+# Rare species
+# Flatten list into a dataframe to assess differences between regions
+# Ignore warnings!
+rare <- map_dfr(rareSpp,~map_dfr(.x,identity,.id="species"),identity,.id="region")
+head(rare)
+
+rare.wide <- tidyr::pivot_wider(rare, names_from = "region",values_from = "count") 
+path <- paste0(getwd(),"/rareSpecies.csv")
+write_csv(rare.wide, path=path) 
 
 # Plot barren sites
-# list <- unlist(barrenSites, recursive = FALSE)
-# barren <- do.call("rbind", list)
-
-# Extract richness values
-richness <- map(barrenSites)#, "sppRichness")
-str(richness)
-
-# How to map from a list of dataframes
-df <- map_df(barrenSites, function(.x){
-  return(data.frame(.x))
-} )
-
-# Flatten list into a dataframe to assess differences between regions
-flat1 <- map(map_if(barrenSites,~class(.x)=="matrix",list),~map(.x,as.data.frame))
-barren <- map_dfr(flat1,~map_dfr(.x,identity,.id="TransDepth"),identity,.id="region")
-colnames(barren)[3] <- "spCnt"
-head(barren)
-
+list <- unlist(barrenSites, recursive = FALSE)
+barren <- do.call("rbind", list)
 head(barren)
 colnames(barren) <- c("TransDepth","spCnt")
 barren$TransDepth <- as.character(barren$TransDepth)
@@ -140,9 +134,11 @@ barren <- drop_na(barren)
 # Make sf and plot
 barren_sf <- st_as_sf(barren, coords = c("coords.x1","coords.x2"), crs = 3005) # BC Albers 
 # As "Spatial" - if you need to save as a shp
-#barren_sp <- as(barren_sf, "Spatial")
+barren_sp <- as(barren_sf, "Spatial")
 mapview(barren_sf, zcol = "spCnt", legend = TRUE) 
-
+sp.filename <- "barren_sites"
+dsn.brrn <- paste0(getwd(), "/SHP")
+writeOGR(barren_sp, dsn=dsn.brrn, sp.filename, driver="ESRI Shapefile",overwrite_layer = T)
 
 rm(barrenSites,rareSpp,sppByRegion,listOfLists)
 
