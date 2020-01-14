@@ -1,8 +1,6 @@
 #######################################################################################################################
 # Cluster analysis of Benthic Habitat Mapping Dive Survey Sites
 #
-# To do: Change myCluster to $Element$Region
-#        Change loops to lapply statements 
 #######################################################################################################################
 
 # Start fresh
@@ -23,28 +21,6 @@ library(dendextend)
 library(rstudioapi)
 library(tidyverse)
 
-# Inputs
-#-------
-
-date <- format(Sys.Date(), "%b_%d")
-region <- "All"
-outdir <- paste0(date,"_",region)
-dsn.dir <- "SHP"
-
-spThreshold <- 0.03 # Proportion of sites that a species must be found in
-siteThreshold <- 3 # Minimum number of species / site
-distance <- "simpson"
-clusterMethod <- "ward.D2" 
-
-# Read in species by regions
-#---------------------------
-sppByRegion <- readRDS("C:/Users/daviessa/Documents/R/PROJECTS_MY/DiveSurveys_DataPrep/Data/RDS/sppByRegion.rds")
-
-# Read in spatialized points
-#---------------------------
-dsn <- "C:/Users/daviessa/Documents/R/PROJECTS_OTHERS/SpatializeDiveTransects/ByDepthCat"
-sp <- readOGR(dsn=dsn, layer="All_SpatPts_DepthCat", stringsAsFactors = F)
-
 # Get path for this script
 #-------------------------
 # Set working directory to one above script directory
@@ -58,6 +34,11 @@ source('CommunityAssemblages_functions.R')
 
 # Set up new directory for all results
 #-------------------------------------
+date <- format(Sys.Date(), "%b_%d")
+region <- "All"
+outdir <- paste0(date,"_",region)
+dsn.dir <- "SHP"
+
 setwd( "../Results") 
 if (dir.exists(outdir)){
   setwd(outdir)
@@ -67,6 +48,23 @@ if (dir.exists(outdir)){
   dir.create(dsn.dir)
 }
 getwd()
+
+# Inputs
+#-------
+spThreshold <- 0.03 # Proportion of sites that a species must be found in
+siteThreshold <- 3 # Minimum number of species / site
+distance <- "simpson"
+clusterMethod <- "ward.D2" 
+
+# Read in species by regions
+#---------------------------
+sppByRegion <- readRDS("C:/Users/daviessa/Documents/R/PROJECTS_MY/DiveSurveys_DataPrep/Data/RDS/sppByRegion.rds")
+sppDF <- readRDS("C:/Users/daviessa/Documents/R/PROJECTS_MY/DiveSurveys_DataPrep/Data/RDS/sppByRegion_Dataframe.rds")
+
+# Read in spatialized points
+#---------------------------
+dsn <- "C:/Users/daviessa/Documents/R/PROJECTS_OTHERS/SpatializeDiveTransects/ByDepthCat"
+sp <- readOGR(dsn=dsn, layer="All_SpatPts_DepthCat", stringsAsFactors = F)
 
 # Create spatialized points link
 #-------------------------------
@@ -99,24 +97,14 @@ for (i in 1:length(sppByRegion)){
   names(barrenSites)[[i]] <- names(sppByRegion)[i]
   barrenSites[[i]] <- listOfLists[[i]]$sppSiteList[3]
 }
+saveRDS(listOfLists, "ListOfLists.RDS")
 
-### TO DO ###
-# Outputs: Table of rare species by region (spp | NCC | HG | QCS | SoG)
-# Outputs: Figure of barren sites
-# Save as ? RDS, shp, csv
-
-# # Remove rare species
-# remSp <- as.data.frame( sppSiteList[2] ) 
-# as.character( remSp$species )
-# write_csv( remSp, paste0(region,"_SpeciesRemoved.csv" ))
-# 
 
 # --- Examine rare species and plot barren sites from each region --- #
 
 # Rare species
-# Flatten list into a dataframe to assess differences between regions
-# Ignore warnings!
-rare <- map_dfr(rareSpp,~map_dfr(.x,identity,.id="species"),identity,.id="region")
+# Flatten list into a dataframe to assess differences between regions --- warnings bc df's contain factors, not characters
+suppressWarnings(rare <- map_dfr(rareSpp,~map_dfr(.x,identity,.id="species"),identity,.id="region"))
 head(rare)
 
 rare.wide <- tidyr::pivot_wider(rare, names_from = "region",values_from = "count") 
@@ -140,7 +128,7 @@ sp.filename <- "barren_sites"
 dsn.brrn <- paste0(getwd(), "/SHP")
 writeOGR(barren_sp, dsn=dsn.brrn, sp.filename, driver="ESRI Shapefile",overwrite_layer = T)
 
-rm(barrenSites,rareSpp,sppByRegion,listOfLists)
+rm(barrenSites,rareSpp,listOfLists,rare.wide,dsn.brrn,barren,barren_sp)
 
 # --- Run cluster analysis and build dendrogram --- #
 # Create empty list to store results
@@ -163,7 +151,7 @@ for (i in 1:length(prep4Cluster)){
   print(myCluster[[i]]$cophenetic)
 }
 
-rm(prep4Cluster)
+#rm(prep4Cluster)
 
 # Plot and save dendrograms as png and as separate objects to play with cutoffs
 for (i in 1:length(myCluster)){
@@ -264,7 +252,7 @@ for (i in 1:length(cluster.frq)){
   df <- NULL
 }
 
-myList <- myCluster
+#myList <- myCluster
 
 # --- Create color-coded dendrogram....slow... --- #
 #colourTree <- vector("list",4)
@@ -289,5 +277,37 @@ for (i in 1:length(myCluster)){
   legend("topright", legend = myCluster[[i]]$legend$cl,fill = as.character(myCluster[[i]]$legend$assigned), bty = "n", ncol=7, horiz = FALSE)
   dev.off()
 }
+
+# Save cluster objects
+saveRDS(myCluster, "myCluster.RDS")
+
+# --- Assign a cluster group to each site --- # 
+# Convert list element to a dataframe
+clTable <- suppressWarnings( map_dfr(cl.list, function(x){ data.frame( "TransDepth"=names(x),"cl"=(x) ) }) )
+head(clTable)
+
+# Join cl with Prep4Cluster list 
+speciesFullCl <- vector("list", 4)
+
+for (i in 1:length(prep4Cluster)){
+  # Organize cluster data into a df
+  clTbl <- data.frame("TransDepth"=names(cl.list[[i]]),"cl"=(cl.list[[i]]) )
+  # Organize siteXspp data into a df and create new variable for join
+  spp <- as.data.frame(prep4Cluster[[i]])
+  spp$TransDepth <- as.character(row.names(spp))
+  # Join clusters to siteXspp data
+  spp <- full_join(spp, clTable, by="TransDepth")
+  # Save in new list
+  names(speciesFullCl)[[i]] <- names(prep4Cluster)[[i]]
+  speciesFullCl[[i]] <- spp
+}
+
+# Save work
+saveRDS( speciesFullCl, "speciesFullCl.RDS" )
+
+# To Do: join with spat
+# layer <- paste0("Cluster_treeHt",seth)
+# matFullCl <- makeShp( data=matFullCl, dsn=dsn, layer=layer )
+# mapview( matFullCl, zcol = "cl" )
 
 
