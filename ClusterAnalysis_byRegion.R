@@ -237,7 +237,7 @@ nTopClusters <- list(5,4,5,4)
 buildseq <- function(x){
   seq(1,(x),by=1)
 }
-myTopClusters <- lapply(nTopClusters,buildseq )
+myTopClusters <- lapply( nTopClusters, buildseq )
 myTopClusters
 
 # Assign colours to clusters
@@ -254,7 +254,7 @@ for (i in 1:length(cluster.frq)){
 
 #myList <- myCluster
 
-# --- Create color-coded dendrogram....slow... --- #
+# --- Create color-coded dendrogram....slow! --- #
 #colourTree <- vector("list",4)
 par(mfrow = c(2,2))
 # Create coloured trees
@@ -282,9 +282,6 @@ for (i in 1:length(myCluster)){
 saveRDS(myCluster, "myCluster.RDS")
 
 # --- Assign a cluster group to each site --- # 
-# Convert list element to a dataframe
-clTable <- suppressWarnings( map_dfr(cl.list, function(x){ data.frame( "TransDepth"=names(x),"cl"=(x) ) }) )
-head(clTable)
 
 # Join cl with Prep4Cluster list 
 speciesFullCl <- vector("list", 4)
@@ -292,11 +289,12 @@ speciesFullCl <- vector("list", 4)
 for (i in 1:length(prep4Cluster)){
   # Organize cluster data into a df
   clTbl <- data.frame("TransDepth"=names(cl.list[[i]]),"cl"=(cl.list[[i]]) )
+  clTbl$TransDepth <- as.character(clTbl$TransDepth)
   # Organize siteXspp data into a df and create new variable for join
   spp <- as.data.frame(prep4Cluster[[i]])
   spp$TransDepth <- as.character(row.names(spp))
   # Join clusters to siteXspp data
-  spp <- full_join(spp, clTable, by="TransDepth")
+  spp <- full_join(spp, clTbl, by="TransDepth")
   # Save in new list
   names(speciesFullCl)[[i]] <- names(prep4Cluster)[[i]]
   speciesFullCl[[i]] <- spp

@@ -3,39 +3,46 @@
 # start fresh
 rm(list=ls())
 
-library(reshape)
-#library(data.table)
-library(foreign)
+library(tidyverse)
+#library(foreign)
 library(vegan)
-library(rgdal)
+#library(rgdal)
 library(labdsv) # for indicator species analysis
 
-#outdir<-"./forClusterAnalysis_/"
+
 
 pValCutoff <- 0.05
 indvalCutoff <- 0.15
 
 
-# Read in RDS file
+# Read in RDS files
 speciesFullCl <- readRDS("speciesFullCl.RDS")
-dat <- speciesFullCl$HG
-# 1. Read in species list
+#dat <- speciesFullCl$HG
+
+# Read in species list
 species <- readRDS("../../RDS/species.RDS")
-# 2. Match species in species list as speciesNew (species list changes from region to region)
-speciesNew <- species[species%in% names(dat)]
 
-head(dat,3)
-datNew <- dat[,speciesNew]
-datNew[is.na(datNew)] <- 0
-summary(datNew)
-sumRows <- rowSums(datNew)
-sumCols <- colSums(datNew)
+# Match species in species list as speciesNew (species list changes from region to region)
+#speciesNew <- species[species%in% names(dat)]
+speciesTrim <- vector("list", 4)
+indvalList <- vector("list", 4)
+for (i in 1:length(speciesFullCl)){
+  print(dim(speciesFullCl[[i]]))
+  # Select species of interest in each region
+  speciesNew <- species[species%in% names(speciesFullCl[[i]])]
+  speciesTrim[[i]] <- speciesFullCl[[i]][,speciesNew]
+  speciesTrim[[i]][is.na(speciesTrim[[i]])] <- 0
+  names(speciesTrim)[[i]] <- names(speciesFullCl)[i]
+  print(dim(speciesTrim[[i]]))
+  # Run indval analysis
+  indvalList[[i]] <- indval(speciesTrim[[i]], speciesFullCl[[i]]$cl)
+  names(indvalList)[[i]] <- names(speciesFullCl)[i]
+}
 
-# 3. #Run indval analysis
-indvalList <- indval(datNew[,speciesNew], dat$cl) 
 
-# 4. Organize indval output into a dataframe
+# Organize indval output into a dataframe
 
+# Function to organize indval() output into a summary table by species 
 indicatorValues <- function(ind){
   # extract the indicator value for each species
   indv <- data.frame(species=row.names(ind$indval), round(ind$indval,3))
@@ -53,137 +60,166 @@ indicatorValues <- function(ind){
   indtab <- cbind(maxcls, pval=pval[,-1], indv[,-1], abu[,-1])
   return(indtab)
 }
-
-indval.df <- indicatorValues(indvalList)
-head(indval.df,3)
+# Run function
+indval.summary <- vector("list", 4)
+for (i in 1:length(indvalList)){
+  indval.summary[[i]] <- indicatorValues(indvalList[[i]])
+  names(indval.summary)[[i]] <- names(indvalList)[i]
+  print(head(indval.summary[[i]],3))
+}
 
 
 # Select only species that have a pval less than the predetermined cutoff?
-if(!is.na(pValCutoff)){
-  intabSub <- intab[intab$pval <= pValCutoff,]
-} else { intabSub <- intab}
+step1 <- vector("list", 4)
+step2 <- vector("list", 4)
 
-# New empty list
-topSp <- list()
-
-
-for (i in unique(intabSub$maxcl)){
-  # Loop thru each cluster...
-  intabSubx <- intabSub[intabSub$maxcl==i, ]
-  # Select species
-  intabSubx$species <- as.character( intabSubx$species )
-  # Select matching indval values
-  indCol <- grep(paste0("indval_",i,"$"), names(intabSubx))
-  # Select matching frequency values
-  freqCol <- grep(paste0("freq_",i,"$"), names(intabSubx)) 
-  # Order by indval
-  intabSubx <- intabSubx[order(-intabSubx[,indCol]), ]
-  # Remove NA's, if any 
-  intabSubx <- intabSubx[!is.na(intabSubx$species), ]
-  # Select species where indval value is less than cutoff
-  intabSubxLim <- intabSubx[intabSubx[,indCol] >= indvalCutoff, ]
-  # If no species are less than the cutoff, then ...
-  if(nrow(intabSubxLim)==0){
-    intabSubxLim[1,c(1:2)] <- c( "no ind species",i )
-    intabSubxLim$indvalInMaxcl <- NA
-    intabSubxLim$freqInMaxcl <- NA
-  # Else, select appropriate values 
-  } else {
-    intabSubxLim$indvalInMaxcl <- unlist( c(intabSubxLim[,indCol]) )
-    intabSubxLim$freqInMaxcl <- unlist( c(intabSubxLim[,freqCol]) )
-    intabSubxLim[,freqCol] <- NA
-  }
-  # Subset dataframe
-  intabSubxLim <- intabSubxLim[,c("species","maxcl","indvalInMaxcl","freqInMaxcl",names(abu[,2:ncol(abu)]))]
-  intabSubxLim
-  # Add to list
-  topSp[[i]]<-intabSubxLim
-}
-# Build dataframe from list
-topSpdf <- do.call("rbind",topSp)
-topSpdf
-
-# 5. Join with species look-up table
-
-
-
-#dat<-read.dbf(paste0(outdir,"3/SpatialPointsWithSpecies_cl__2019.04_HG_tryWards.dbf"))
-#species<-readRDS(paste0(outdir,"species.rdata")) # This does not exist?
-
-
-# dat_melt<-pivot_longer(dat, cols=1:103,names_to = "species",values_to = "present")
-# 
-# dat_melt<-melt(dat[,names(dat) %in% c("cl","TransDepth",species)], id.vars=c("TransDepth","cl"))
-# dat_cast<-cast(dat_melt, ID+cl~variable, fun="mean")
-# 
-# #Remove species that do not occur in any site ## FLAG in input data why this is occuring
-# specsums <- colSums(dat_cast[,names(dat_cast) %in% species])
-# names(specsums) <- names(dat_cast[,names(dat_cast) %in% species])
-# zeroSpec <- names(specsums[specsums==0])
-# dat_cast <- dat_cast[,!names(dat_cast)%in% zeroSpec]
-# speciesNew <- species[species%in% names(dat_cast)]
-
-# There is an error here.  Need to bring in legendcluster df
-legendcluster <- readRDS(paste0(outdir, "/legendcluster.rds"))
-dat_cast<-dat_cast[dat_cast$cl %in% legendcluster$cl,]
-
-#Run indval analysis
-ind <- indval(dat_cast[,speciesNew], dat_cast$cl) 
-
-indv <- data.frame(species=row.names(ind$indval), round(ind$indval,3))
-names(indv) <- c("species",paste0("indval_",gsub("X","",names(indv[,2:ncol(indv)]))))
-abu <- data.frame(species=row.names(ind$relabu), round((ind$relabu*100),1))
-names(abu) <-c ("species",paste0("freq_",gsub("X","",names(abu[,2:ncol(abu)]))))
-cls <- gsub("indval_","",names(indv)[2:length(names(indv))])
-maxcls <- data.frame(species=names(ind$maxcls), maxcl=as.numeric(as.character(cls[ind$maxcls]))) #maxcls is the INDEX OF the class each species has the maximum indicator value for
-
-pval <- data.frame(species=names(ind$pval),pval= ind$pval) #the class each species has the maximum indicator value for
-intab <- cbind(maxcls,pval=pval[,-1],indv[,-1], abu[,-1])
-
-
-if(!is.na(pValCutoff)){
-  intabSub <- intab[intab$pval<=pValCutoff,]
-} else { intabSub<-intab}
-
-topSp<-list()
-for (i in unique(intabSub$maxcl)){
-  
-  intabSubx<-intabSub[intabSub$maxcl==i,]
-  intabSubx$species<-as.character(intabSubx$species)
-  indCol<-grep(paste0("indval_",i,"$"),names(intabSubx))
-  freqCol<-grep(paste0("freq_",i,"$"),names(intabSubx)) 
-  intabSubx<-intabSubx[order(-intabSubx[,indCol]),]
-  intabSubx<-intabSubx[!is.na(intabSubx$species),]
-  intabSubxLim<-intabSubx[intabSubx[,indCol]>=indvalCutoff,]
-  
-  if(nrow(intabSubxLim)==0){
-    intabSubxLim[1,c(1:2)]<-c("no ind species",i)
-    intabSubxLim$indvalInMaxcl<-NA
-    intabSubxLim$freqInMaxcl<-NA
-    
-  } else {
-    intabSubxLim$indvalInMaxcl<-unlist(c(intabSubxLim[,indCol]))
-    intabSubxLim$freqInMaxcl<-unlist(c(intabSubxLim[,freqCol]))
-    intabSubxLim[,freqCol]<-NA
-  }
-  intabSubxLim<-intabSubxLim[,c("species","maxcl","indvalInMaxcl","freqInMaxcl",names(abu[,2:ncol(abu)]))]
-  intabSubxLim
-  topSp[[i]]<-intabSubxLim
+pValCutOffs <- function(x){
+  if(!is.na(pValCutoff)){
+    signifSpp[[i]] <- indval.summary[[i]][indval.summary[[i]]$pval <= pValCutoff,] # change name of new df
+  } else { signifSpp[[i]] <- indval.summary[[i]]}
 }
 
-topSpdf<-do.call("rbind",topSp)
-topSpdf
-
-spLookup<-read.csv("C:/Users/daviessa/Documents/R/PROJECTS_MY/DiveSurveys_DataPrep/Data/LookupTbls/SpeciesLookUpTbl.csv")
-#names(spLookup)[1]<-"Species_Code"
-topSpdf<-merge(topSpdf, spLookup, by.x="species", by.y="Sp_cde")
-# topSpdf<-topSpdf[,c(ncol(topSpdf), 2:(ncol(topSpdf)-1))]
-# topSpdf<-topSpdf[order(topSpdf$maxcl, -topSpdf$indvalInMaxcl),]
-head(topSpdf,3)
-topSpdf <- topSpdf[c(1,11,12,2:10)]
+# Apply function
+indval.pvals <- lapply(indval.summary, pValCutOffs)
 
 
-write.csv(topSpdf, paste0(outdir,"indicatorSpecies_tryWards.csv"),row.names=F)
+listElement <- vector("list", 4)
+
+# Function to select indicator species
+indicatorSpecies <- function(df, indvalCutoff){
+  # New empty list
+  topSp <- list()
+  #topSpdf <- list()
+  # # df to hold list element i
+  df <- listElement[[i]]
+  df$species <- as.character( df$species )
+  clusters <- unique(df$maxcl)
+  for (i in clusters[i]){
+    print(i)
+    # Loop thru each cluster...
+    df.cl.X <- df[df$maxcl==(i), ]
+    #df.cl.X <- dplyr::filter(df, df$maxcl==(i))
+    # Select species
+    df.cl.X$species <- as.character( df.cl.X$species )
+    # Find index for cluster indval
+    indCol <- grep(paste0("indval_",i,"$"), names(df.cl.X))
+    # Find index for cluster frequency  
+    freqCol <- grep(paste0("freq_",i,"$"), names(df.cl.X)) 
+    # Order by indval
+    df.cl.X <- df.cl.X[order(-df.cl.X[,indCol]), ]
+    # Remove NA's, if any 
+    df.cl.X <- df.cl.X[!is.na(df.cl.X$species), ]
+    # Select species where indval value is less than cutoff
+    df.cl.XLim <- df.cl.X[df.cl.X[,indCol] >= indvalCutoff, ]
+    # If no species are less than the cutoff, then ...
+    if(nrow(df.cl.XLim)==0){
+      df.cl.XLim[1,c(1:2)] <- c( "no ind species",i )
+      df.cl.XLim$indvalInMaxcl <- NA
+      df.cl.XLim$freqInMaxcl <- NA
+    # Else, select appropriate values 
+    } else {
+      df.cl.XLim$indvalInMaxcl <- unlist( c(df.cl.XLim[,indCol]) )
+      df.cl.XLim$freqInMaxcl <- unlist( c(df.cl.XLim[,freqCol]) )
+      df.cl.XLim[,freqCol] <- NA
+    }
+    # Subset dataframe
+    #df.cl.XLim <- df.cl.XLim[,c("species","maxcl","indvalInMaxcl","freqInMaxcl",names(abu[,2:ncol(abu)]))]
+    df.cl.XLim <- df.cl.XLim[,c("species","maxcl","indvalInMaxcl","freqInMaxcl",paste0("freq_",max(df$maxcl)))]# Need to build a new sequence here!
+    df.cl.XLim
+    # Add to list
+    topSp[[i]] <- df.cl.XLim
+  }
+  # Build dataframe from list
+  topSpdf <- do.call("rbind",topSp)
+  return(topSpdf)
+}
+indSpp <- vector("list", 4)
+indSpp <- indicatorSpecies(indval.pvalMin, indvalCutoff)
+
+for (i in 1:length(indval.pvalMin)){
+  df.pvalMin <- indval.pvalMin[[i]]
+  cl <- unique(indval.pvalMin[[i]]$maxcl)
+  indSpp <- lapply(df.pvalMin, indicatorSpecies)
+  newList[[i]] <- indSpp
+}
 
 
-#write.csv(matFullCl, paste0(outdir,"matFullCl_tryWards.csv"), row.names=F)
+# # TESTING ## TESTING ## TESTING ## TESTING ## TESTING ## TESTING ## TESTING #
+# #888888888888888888888888888888888888888888888888888888888888888888888888888#
+# # TESTING ## TESTING ## TESTING ## TESTING ## TESTING ## TESTING ## TESTING #
+# 
+# str(indval.pvalMin) # starting point
+# 
+# listElement <- vector("list", 4)
+# 
+# # Function to select indicator species
+# indicatorSpecies <- function(df, clusters = cl, indvalCutoff){
+#   # New empty list
+#   topSp <- list()
+#   # df to hold list element i
+#   # df <- listElement[[i]]
+#   # cl.cnt <- length(unique(df$maxcl))
+#   for (i in 1:length(clusters)){
+#     print(i)
+#     # Loop thru each cluster...
+#     df.cl.X <- df[df$maxcl==(i), ]
+#     #df.cl.X <- dplyr::filter(df, df$maxcl==(i))
+#     # Select species
+#     df.cl.X$species <- as.character( df.cl.X$species )
+#     # Find index for cluster indval
+#     indCol <- grep(paste0("indval_",i,"$"), names(df.cl.X))
+#     # Find index for cluster frequency  
+#     freqCol <- grep(paste0("freq_",i,"$"), names(df.cl.X)) 
+#     # Order by indval
+#     df.cl.X <- df.cl.X[order(-df.cl.X[,indCol]), ]
+#     # Remove NA's, if any 
+#     df.cl.X <- df.cl.X[!is.na(df.cl.X$species), ]
+#     # Select species where indval value is less than cutoff
+#     df.cl.XLim <- df.cl.X[df.cl.X[,indCol] >= indvalCutoff, ]
+#     # If no species are less than the cutoff, then ...
+#     if(nrow(df.cl.XLim)==0){
+#       df.cl.XLim[1,c(1:2)] <- c( "no ind species",i )
+#       df.cl.XLim$indvalInMaxcl <- NA
+#       df.cl.XLim$freqInMaxcl <- NA
+#       # Else, select appropriate values 
+#     } else {
+#       df.cl.XLim$indvalInMaxcl <- unlist( c(df.cl.XLim[,indCol]) )
+#       df.cl.XLim$freqInMaxcl <- unlist( c(df.cl.XLim[,freqCol]) )
+#       df.cl.XLim[,freqCol] <- NA
+#     }
+#     # Subset dataframe
+#     #df.cl.XLim <- df.cl.XLim[,c("species","maxcl","indvalInMaxcl","freqInMaxcl",names(abu[,2:ncol(abu)]))]
+#     df.cl.XLim <- df.cl.XLim[,c("species","maxcl","indvalInMaxcl","freqInMaxcl",paste0("freq_",seq(1:cl.cnt)))]# Need to build a new sequence here!
+#     df.cl.XLim
+#     # Add to list
+#     topSp[[i]] <- df.cl.XLim
+#   }
+#   # Build dataframe from list
+#   topSpdf <- do.call("rbind",topSp)
+#   return(topSpdf)
+# }
+# indSpp <- vector("list", 4)
+# indSpp <- indicatorSpecies(indval.pvalMin, indvalCutoff)
+# 
+# for (i in 1:length(indval.pvalMin)){
+#   df.pvalMin <- indval.pvalMin[[i]]
+#   cl <- unique(indval.pvalMin[[i]]$maxcl)
+#   indSpp <- lapply(df.pvalMin, indicatorSpecies)
+#   newList[[i]] <- indSpp
+# }
+# 
+# # Order by maxcl
+# # 
+# 
+# # # 5. Join with species look-up table
+# # spLookup<-read.csv("C:/Users/daviessa/Documents/R/PROJECTS_MY/DiveSurveys_DataPrep/Data/LookupTbls/SpeciesLookUpTbl.csv")
+# # #names(spLookup)[1]<-"Species_Code"
+# # topSpdf<-merge(topSpdf, spLookup, by.x="species", by.y="Sp_cde")
+# # # topSpdf<-topSpdf[,c(ncol(topSpdf), 2:(ncol(topSpdf)-1))]
+# # # topSpdf<-topSpdf[order(topSpdf$maxcl, -topSpdf$indvalInMaxcl),]
+# # head(topSpdf,3)
+# # topSpdf <- topSpdf[c(1,11,12,2:10)]
+# 
+# # Save output
+# saveRDS(indSpp, "IndicatorSpecies.RDS")
+# 
