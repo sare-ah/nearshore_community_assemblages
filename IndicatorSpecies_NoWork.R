@@ -7,7 +7,8 @@ rm(list=ls())
 #--------------
 
 library(tidyverse)
-library(labdsv) # for indval() indicator species analysis
+library(labdsv) # indval() indicator species analysis
+library(indicspecies) # multipatt() multi-level pattern analysis
 
 # Inputs
 #-------
@@ -107,6 +108,34 @@ for (i in 1:length(indval.pvals)){
   names(final)[[i]] <- names(indval.pvals)[i]
 }
 final
+
+# Multipatt() multi-level pattern analysis
+#-----------------------------------------
+
+# Empty lists for output
+mlpList <- vector("list", 4)
+
+# Set-up and run indval() analysis
+for (i in 1:length(speciesFullCl)){
+  # Match species in species list as speciesNew (observations change in different regions)
+  observed <- species[species%in% names(speciesFullCl[[i]])]
+  sppObs <- speciesFullCl[[i]][,observed]
+  # Ensure there are no NA's - will create error in indval()
+  sppObs[is.na(sppObs)] <- 0
+  # Build cluster vector
+  clusters <- speciesFullCl[[i]]$cl
+  # Run multipatt analysis
+  mlpList[[i]] <- multipatt(sppObs, clusters, control = how(nperm=999))
+  names(mlpList)[[i]] <- names(speciesFullCl)[i]
+}
+
+# Summary of output
+#-----------------
+summary(mlpList$HG)
+# To determine which species had high IndVal in all groups &
+# therefore cannot statistically test their association
+#*** To Do: make df of sign with p.value == NA 
+mlpList$HG$sign
 
 # *** TO Do *** 
 # Look at RDS by region file, it appears to contain only one region 4 times!
