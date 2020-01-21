@@ -60,6 +60,7 @@ clusterMethod <- "ward.D2"
 #---------------------------
 sppByRegion <- readRDS("C:/Users/daviessa/Documents/R/PROJECTS_MY/DiveSurveys_DataPrep/Data/RDS/sppByRegion.rds")
 sppDF <- readRDS("C:/Users/daviessa/Documents/R/PROJECTS_MY/DiveSurveys_DataPrep/Data/RDS/sppByRegion_Dataframe.rds")
+allCl <- readRDS("C:/Users/daviessa/Documents/R/PROJECTS_MY/CommunityAssemblages/RDS/clusterAllSites.RDS")
 
 # Read in spatialized points
 #---------------------------
@@ -73,12 +74,16 @@ sp.pts <- cbind(sp@data,sp@coords)
 # Cluster Analysis
 #-----------------
 
+# Add all sites
+sppDF$Region <- NULL
+sppByRegion$ALL <- sppDF
+
 # --- Remove rare species and barren sites from each region --- #
 # Create empty lists needed for outputs --- maybe we only need the listOfLists???
-listOfLists <- vector("list", 4)
-prep4Cluster <- vector("list", 4)
-rareSpp <- vector("list", 4)
-barrenSites <- vector("list", 4)
+listOfLists <- vector("list", 5)
+prep4Cluster <- vector("list", 5)
+rareSpp <- vector("list", 5)
+barrenSites <- vector("list", 5)
 
 # Calculate summaries
 for (i in 1:length(sppByRegion)){
@@ -132,7 +137,7 @@ rm(barrenSites,rareSpp,listOfLists,rare.wide,dsn.brrn,barren,barren_sp)
 
 # --- Run cluster analysis and build dendrogram --- #
 # Create empty list to store results
-myCluster <- vector("list", 4)
+myCluster <- vector("list", 5)
 
 # Run cluster analysis
 for (i in 1:length(prep4Cluster)){
@@ -180,7 +185,7 @@ for (i in 1:length(myCluster)){
 # rect.hclust(benthtree, h=seth, border="red") # Cutoff based on visual inspection of the tree
 
 # Vector to entry heights from plots
-hts <- c(4,5,2,2) # corresponds to HG,NCC,QCS,SoG
+hts <- c(4,5,2,2,8) # corresponds to HG,NCC,QCS,SoG
 
 # Add height to large list
 for (i in 1:length(myCluster)){
@@ -197,7 +202,7 @@ for (i in 1:length(myCluster)){
 }
 
 # Build a new list of sliced trees
-cl.list <- vector("list",4)
+cl.list <- vector("list",5)
 for (i in 1:length(myCluster)){
   names(cl.list)[i] <- names(myCluster)[i]
   cl.list[[i]] <- myCluster[[i]]$sliceTree
@@ -233,7 +238,7 @@ cluster.frq
 par(mfrow = c(1,1))
 
 # Number of clusters that capture 90% of samples
-nTopClusters <- list(5,4,5,4)
+nTopClusters <- list(5,4,5,4,4)
 buildseq <- function(x){
   seq(1,(x),by=1)
 }
@@ -284,7 +289,7 @@ saveRDS(myCluster, "myCluster.RDS")
 # --- Assign a cluster group to each site --- # 
 
 # Join cl with Prep4Cluster list 
-speciesFullCl <- vector("list", 4)
+speciesFullCl <- vector("list", 5)
 
 for (i in 1:length(prep4Cluster)){
   # Organize cluster data into a df

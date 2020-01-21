@@ -22,6 +22,7 @@ indvalCutoff <- 0.15
 
 # Species by region
 speciesFullCl <- readRDS("speciesFullCl.RDS")
+
 # Species list
 species <- readRDS("../../RDS/species.RDS")
 
@@ -30,7 +31,7 @@ species <- readRDS("../../RDS/species.RDS")
 #------------------
 
 # Empty lists for output
-indvalList <- vector("list", 4)
+indvalList <- vector("list", 5)
 
 # Set-up and run indval() analysis
 for (i in 1:length(speciesFullCl)){
@@ -65,7 +66,7 @@ indicatorValues <- function(ind){
   return(indtab)
 }
 # Run function
-indval.summary <- vector("list", 4)
+indval.summary <- vector("list", 5)
 for (i in 1:length(indvalList)){
   indval.summary[[i]] <- indicatorValues(indvalList[[i]])
   names(indval.summary)[[i]] <- names(indvalList)[i]
@@ -77,7 +78,7 @@ for (i in 1:length(indvalList)){
 #----------------------
 
 # List of species with significant p values
-indval.pvals <- vector("list", 4)
+indval.pvals <- vector("list", 5)
 
 # Filter results by p value
 for (i in 1:length(indval.summary)){
@@ -92,7 +93,7 @@ summary(indval.pvals)
 # Filter by cluster and indval cutoff
 #------------------------------------
 
-final <- vector("list", 4)
+final <- vector("list", 5)
 
 for (i in 1:length(indval.pvals)){
   df <- indval.pvals[[i]]
@@ -113,7 +114,7 @@ final
 #-----------------------------------------
 
 # Empty lists for output
-mlpList <- vector("list", 4)
+mlpList <- vector("list", 5)
 
 # Set-up and run indval() analysis
 for (i in 1:length(speciesFullCl)){
@@ -131,11 +132,11 @@ for (i in 1:length(speciesFullCl)){
 
 # Summary of output
 #-----------------
-summary(mlpList$HG)
+summary(mlpList$ALL)
 # To determine which species had high IndVal in all groups &
 # therefore cannot statistically test their association
 #*** To Do: make df of sign with p.value == NA 
-mlpList$HG$sign
+mlpList$ALL$sign
 
 # Correlation Indices
 #--------------------
@@ -153,7 +154,7 @@ summary(phi)
 
 # Negative associations or species that tend to 'avoid' particular environmental conditions
 round(head(phi$str), 3)
-round(head(mlpList$SoG$str),3)
+round(head(mlpList$ALL$str),3)
 
 indvalrest = multipatt(sppObs, clusters, max.order = 2, control = how(nperm=999))
 summary(indvalrest)
@@ -173,14 +174,15 @@ summary(indvalori)
 coverage(sppObs,indvalori)
 coverage(sppObs, indvalori, At = 0.8, alpha = 0.05)
 
+par(mfrow = c(1,1))
 # Plot how coverage changes with 'A' threshold
 plotcoverage(x=sppObs, y=indvalori, group="1", lty=1)
 plotcoverage(x=sppObs, y=indvalori, group="2", lty=2, col="blue", add=TRUE)
 plotcoverage(x=sppObs, y=indvalori, group="3", lty=3, col="red", add=TRUE)
 plotcoverage(x=sppObs, y=indvalori, group="4", lty=3, col="green", add=TRUE)
-plotcoverage(x=sppObs, y=indvalori, group="5", lty=3, col="purple", add=TRUE)
-legend(x = 0.01, y=25,legend=c("group 1","group 2","group 3","group 4","group 5"),
-       lty=c(1,2,3), col=c("black","blue","red","green","purple"), bty="n")
+#plotcoverage(x=sppObs, y=indvalori, group="5", lty=3, col="purple", add=TRUE)
+legend(x = 0.01, y=25,legend=c("group 1","group 2","group 3","group 4"),
+       lty=c(1,2,3), col=c("black","blue","red","green"), bty="n")
 
 # Species combinations as indicators of site groups
 #--------------------------------------------------
@@ -211,8 +213,8 @@ plot(sc2, type="B")
 
 
 sc= indicators(X=sppComb, cluster=clusters, group=2, max.order = 2, 
-               verbose=TRUE, At=0.7, Bt=0.4)
-print(sc, sqrtIVt = 0.4) # throws row.names error
+               verbose=TRUE, At=0.5, Bt=0.3)
+print(sc, sqrtIVt = 0.02) # throws row.names error
 # Do combinations improve coverage
 plotcoverage(sc)
 plotcoverage(sc, max.order=1, add=TRUE, lty=2, col="red")
@@ -221,7 +223,7 @@ legend(x=0.1, y=20, legend=c("Species combinations","Species singletons"),
 
 # prune indicators
 # output does not match example in tutorial
-sc2=pruneindicators(sc, At=0.8, Bt=0.2, verbose=TRUE)
+sc2=pruneindicators(sc, At=0.5, Bt=0.2, verbose=TRUE)
 print(sc2)
 
 # predict indicators
@@ -230,7 +232,7 @@ pcv1 <- predict(sc, cv=TRUE)
 
 # Compared predicted probabilities for each site
 # ???
-data.frame(Group2 = as.numeric(speciesFullCl$SoG$cl==2), Prob = pcv, Prob_CV = pcv)
+data.frame(Group1 = as.numeric(speciesFullCl$ALL$cl==1), Prob = pcv, Prob_CV = pcv)
 
 
 # *** TO Do *** 
