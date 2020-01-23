@@ -1,4 +1,8 @@
+#---------------------------
 # Indicator Species Analysis
+#
+# To Do: Add description
+#---------------------------
 
 # start fresh
 rm(list=ls())
@@ -9,6 +13,36 @@ rm(list=ls())
 library(tidyverse)
 library(labdsv) # indval() indicator species analysis
 library(indicspecies) # multipatt() multi-level pattern analysis
+library(rstudioapi)
+
+
+# Get path for this script
+#-------------------------
+# Set working directory to one above script directory
+current_path <- getActiveDocumentContext()$path 
+setwd(dirname(current_path ))
+getwd()
+
+# Source functions
+#-----------------
+#source('CommunityAssemblages_functions.R')
+
+# Set up new directory for all results
+#-------------------------------------
+date <- format(Sys.Date(), "%b_%d")
+region <- "All"
+outdir <- paste0(date,"_",region)
+#dsn.dir <- "SHP"
+
+setwd( "../Results") 
+if (dir.exists(outdir)){
+  setwd(outdir)
+} else{
+  dir.create(path = outdir)
+  setwd(outdir)
+  #dir.create(dsn.dir)
+}
+getwd()
 
 # Inputs
 #-------
@@ -21,7 +55,9 @@ indvalCutoff <- 0.15
 #------------------
 
 # Species by region
-speciesFullCl <- readRDS("speciesFullCl.RDS")
+speciesFullCl <- readRDS("../../RDS/speciesFullCl.RDS")
+# Determine the number of elements in list to use when building output lists
+n <- length(speciesFullCl)
 
 # Species list
 species <- readRDS("../../RDS/species.RDS")
@@ -31,7 +67,7 @@ species <- readRDS("../../RDS/species.RDS")
 #------------------
 
 # Empty lists for output
-indvalList <- vector("list", 5)
+indvalList <- vector("list", n)
 
 # Set-up and run indval() analysis
 for (i in 1:length(speciesFullCl)){
@@ -66,7 +102,7 @@ indicatorValues <- function(ind){
   return(indtab)
 }
 # Run function
-indval.summary <- vector("list", 5)
+indval.summary <- vector("list", n)
 for (i in 1:length(indvalList)){
   indval.summary[[i]] <- indicatorValues(indvalList[[i]])
   names(indval.summary)[[i]] <- names(indvalList)[i]
@@ -78,7 +114,7 @@ for (i in 1:length(indvalList)){
 #----------------------
 
 # List of species with significant p values
-indval.pvals <- vector("list", 5)
+indval.pvals <- vector("list", n)
 
 # Filter results by p value
 for (i in 1:length(indval.summary)){
@@ -93,7 +129,7 @@ summary(indval.pvals)
 # Filter by cluster and indval cutoff
 #------------------------------------
 
-final <- vector("list", 5)
+final <- vector("list", n)
 
 for (i in 1:length(indval.pvals)){
   df <- indval.pvals[[i]]
@@ -108,13 +144,13 @@ for (i in 1:length(indval.pvals)){
   final[[i]] <- as.data.frame(df)
   names(final)[[i]] <- names(indval.pvals)[i]
 }
-final
+final$ALL
 
 # Multipatt() multi-level pattern analysis
 #-----------------------------------------
 
 # Empty lists for output
-mlpList <- vector("list", 5)
+mlpList <- vector("list", n)
 
 # Set-up and run indval() analysis
 for (i in 1:length(speciesFullCl)){
