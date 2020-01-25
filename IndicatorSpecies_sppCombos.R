@@ -27,6 +27,14 @@ library(indicspecies) # multipatt() multi-level pattern analysis
 library(rstudioapi)
 
 
+# Inputs
+#-------
+nSiteCl <- 0.25 # Threshold of sites a species is present in for each cluster 
+max.order <- 3  # Maximum number of species combinations
+At <- 0.6       # Threshold for positive predictive value
+Bt <- 0.25      # Threshold for sensitivity
+
+
 # Get path for this script
 #-------------------------
 # Set working directory to one above script directory
@@ -42,7 +50,8 @@ getwd()
 #-------------------------------------
 date <- format(Sys.Date(), "%b_%d")
 region <- "All"
-outdir <- paste0(date,"_",region)
+#outdir <- paste0(date,"_",region)
+outdir <- paste0("nSites",nSiteCl,"_maxCombo",max.order,"_At",At,"_Bt",BT)
 #dsn.dir <- "SHP"
 
 setwd( "../Results") 
@@ -55,28 +64,18 @@ if (dir.exists(outdir)){
 }
 getwd()
 
-# Inputs
-#-------
-
-# pValCutoff <- 0.05
-# indvalCutoff <- 0.15
-
 
 # Read in RDS files --- #1 & #2
 #------------------
-
 # Species by region
 speciesFullCl <- readRDS("../../RDS/speciesFullCl.RDS")
-# Determine the number of elements in list to use when building output lists
-n <- length(speciesFullCl)
-
 # Species list
 species <- readRDS("../../RDS/species.RDS")
-
 # Cluster frequency
 cluster.freq <- readRDS("cluster.freq.RDS")
 
-# Determine which species occur in atleast 40% of target clusters --- #3
+
+# Determine which species occur in atleast _ _ % of target clusters --- #3
 #----------------------------------------------------------------
 # # Grab just one list element
 sppAll <- speciesFullCl$ALL
@@ -92,7 +91,7 @@ df <- as.data.frame( sppAll_long %>%
   summarise(nSites = length(TransDepth)) )
 
 # Threshold of sites for each cluster
-thrshld <- data.frame( cl=as.integer(cl.freq$cl), thrshld = round(0.40 * cl.freq$Freq) )
+thrshld <- data.frame( cl=as.integer(cl.freq$cl), thrshld = round(nSiteCl * cl.freq$Freq) )
 
 # Determine number of species that meet frequency threshold
 newSpp <- left_join(df, thrshld, by="cl")
@@ -101,46 +100,46 @@ newSpp <- filter(newSpp, IN>=0)
 targetSpp <- unique(newSpp$Spp)
 targetSpp
 
-# Subset original site X species matrix
-# Complicated...to do...
-# Other ideas, build a list with df for each cluster?
-# Remove species that is not found in at least one cluster
-# Create new species list
-# Subset original matrix by new list
 
+# Build cluster vector and new community data table  
+#--------------------------------------------------
 row.names(sppAll) <- sppAll$TransDepth
-#sppObs <- sppObs[,1:109]
 clusters <- sppAll$cl
-
 sppObs <- sppAll[,targetSpp]
 sppObs[is.na(sppObs)] <- 0
 head(sppObs, 3)
 
+
 # Multipatt() multi-level pattern analysis 
 #-----------------------------------------
-# 
-# indval = multipatt(x = sppObs, cluster = clusters, max.order = 4, control = how(nperm=999))
-# summary(indval)
-# 
-# Test the association btw species & each group of sites, regardless of whether the association value
-# was the highest or not. For example, test whether the frequency of the species in each site group
-# is higher or lower than random
-# ? what is psidak?
+indval = multipatt(x = sppObs, cluster = clusters, max.order = 4, control = how(nperm=999))
+summary(indval)
+
+
+# Determine if the frequency of species in each site group was higher or lower than random
+#-----------------------------------------------------------------------------------------
+# Test the association btw species & each group of sites
+# uses psidak correction 
 # What am I comparing this output too?
-prefsign <- signassoc(sppObs, cluster=clusters, alternative = "two.sided", control = how(nperm=199))
+prefsign <- signassoc( sppObs, cluster=clusters, alternative = "two.sided", control = how(nperm=199) )
 head(prefsign)
 
  
-# Quantity coverage of the site group
+# Determine the quantity coverage of the site group
+#--------------------------------------------------
 # The proportion of sites of a given site group where one or another indicator is found
 indvalori <- multipatt(sppObs, clusters, duleg = TRUE, control = how(nperm=999))
 summary(indvalori)
-# Input community data, object of class multipatt
+
+# Calculate the proportion of sites of the target site group where one or another indicator is found
+#---------------------------------------------------------------------------------------------------
 coverage(sppObs,indvalori)
-coverage(sppObs, indvalori, At = 0.6, alpha = 0.05)
+coverage(sppObs, indvalori, At = 0.4, alpha = 0.05) # bound coverage by A & p-value
  
-par(mfrow = c(1,1))
+
 # Plot how coverage changes with 'A' threshold
+#---------------------------------------------
+par(mfrow = c(1,1))
 plotcoverage(x=sppObs, y=indvalori, group="1", lty=1)
 plotcoverage(x=sppObs, y=indvalori, group="2", lty=2, col="blue", add=TRUE)
 plotcoverage(x=sppObs, y=indvalori, group="3", lty=3, col="red", add=TRUE)
@@ -149,92 +148,178 @@ plotcoverage(x=sppObs, y=indvalori, group="4", lty=3, col="green", add=TRUE)
 legend(x = 0.01, y=30,legend=c("group 1","group 2","group 3","group 4"),
        lty=c(1,2,3), col=c("black","blue","red","green"), bty="n")
 
+
 # Species combinations as indicators of site groups --- #4
 #--------------------------------------------------
 # Build matrix with all possible species combinations
 # My computer can't handle max.order=4
-sppComb <- combinespecies(sppObs, max.order = 3)$XC
+sppComb <- combinespecies(sppObs, max.order = max.order)$XC #...slow
 dim(sppComb)
 saveRDS(sppComb, "sppComb.RDS")
 
-# Re-run mulitpatt with species combinations
-indvalspcomb = multipatt(sppComb, clusters, duleg = TRUE, control = how(nperm=999))
+# Re-run mulitpatt with species combinations ADD CI
+indvalspcomb = multipatt(sppComb, clusters, duleg = TRUE, control = how(nperm=999))#...slow
+
+
+# Coverage
+# To Do: look at options for this function
+coverage(sppComb,indvalspcomb)
+
+
 # List species with a significant association to one combination, including indval components
-summary(indvalspcomb, indvalcomp = TRUE)
+summary(indvalspcomb, indvalcomp = TRUE) 
 saveRDS(indvalspcomb, "SpeciesComboMultipatt.RDS")
 
 # Create output with A, B, or indval stat > some threshold to reduce output
 #...
 
-# Determine indicators for each group (edit group=_) 
-#---------------------------------------------------
-# Threshold for positive predictive value
-At <- 0.6
-# Threshold for sensitivity
-Bt <- 0.25
-
-# Determine sensitivity of individual species
-# Strength of species site-group associations
-# Square root of IndVal index from labdsv pkg
+# Determine indicators for each group 
+#------------------------------------
+# Determine strength of species site-group associations
+# Square root of IndVal index is returned
 B <- strassoc( sppObs, cluster=clusters, func="B" )
 
 # Loop through clusters and select species with more than 20% of sensitivity for the first group
+# Create empty lists for loop outputs
 sc <- vector("list",length(unique(clusters)))
+sc2 <- vector("list",length(unique(clusters)))
 
 for (i in 1:length(unique(clusters))){
-  label <- i
+  label <- paste0("Group ",i)
+  # Select species with more than 20% of sensitivity for group [[i]]
   sel <- which(B[,i]>0.2)
   names(sc)[[i]] <- i
-  sc[[i]] <- indicators(X=sppObs[,sel], cluster=clusters, group=i, max.order = 3, 
-               verbose=TRUE, At=At, Bt=Bt)
+  # Run indicator analysis with species combinations
+  sc[[i]] <- indicators(X=sppObs[,sel], cluster=clusters, group=i, max.order=max.order, 
+               verbose=TRUE, XC=TRUE, nboot=1000, At=At, Bt=Bt)
   print(sc[[i]]) 
-  plotcoverage(sc[[i]])
+  print(length(sel))
+  # Determine if combinations improve coverage
+  plotcoverage(sc[[i]], main=label)
   plotcoverage(sc[[i]], max.order=1, add=TRUE, lty=2, col="red")
-  legend(x=0.1, y=20, title=label, legend=c("Species combinations","Species singletons"),
+  legend(x=0.1, y=20, legend=c("Species combinations","Species singletons"),
          lty=c(1,2), col=c("black","red"), bty="n")
+  # Plot positive predictive power and sensitivity against the order of combinations
+  plot(sc[[i]], type="A", main=label)
+  plot(sc[[i]], type="B", main=label)
+  summary(sc[[i]])
+  # Prune indicators to determine the best subset of indicators
+  sc2[[i]] <- pruneindicators( sc[[i]], At=At, Bt=Bt, verbose=TRUE )
+  names(sc2)[[i]] <- i
+  print(sc2[[i]])
 }
+saveRDS(sc, "Indicators4Clusters.RDS")
+saveRDS(sc2, "PrunedIndicators4Clusters.RDS")
+rm(cluster.freq) # To Do : why is this here?
 
 
-## Plots positive predictive power and sensitivity against the order of combinations
-plot(sc, type="A")
-plot(sc, type="B")
+coverage(sppComb,indvalspcomb)
 
-## Run indicator analysis with species combinations for the first group,
-## but forcing 'Orysp' to be in all combinations
-sc2= indicators(X=sppObs[,sel], cluster=clusters, group=1, verbose=TRUE, At=At, Bt=Bt, enableFixed=TRUE)
-
-sc= indicators(X=sppComb[,sel], cluster=clusters, group=2, max.order = 2, verbose=TRUE, At=0.5, Bt=0.3)
-print(sc, sqrtIVt = 0.02) # throws row.names error
-summary(sc)
-
-# Determine if combinations improve coverage
-plotcoverage(sc)
-plotcoverage(sc, max.order=1, add=TRUE, lty=2, col="red")
-legend(x=0.1, y=20, legend=c("Species combinations","Species singletons"),
-       lty=c(1,2), col=c("black","red"), bty="n")
-
-signassoc(X=sppComb[,sel], cluster=clusters, mode=1, control = how(nperm=999))
-## Look for species whose abundance is significantly higher in sites belonging
-## to one group as opposed to sites not belonging to it.
-signassoc(X=sppComb[,sel], cluster=clusters, mode=0, control = how(nperm=999))
-
-
-# Prune indicators to determine if coverage is changed with a smaller set of indicators
-# output does not match example in tutorial
-sc2 <- pruneindicators(sc, At=0.5, Bt=0.2, verbose=TRUE)
-print(sc2)
-
-# predict indicators
-pcv <- predict(sc2, sppObs, cv=TRUE)
-pcv1 <- predict(sc, cv=TRUE)
-
-# Compared predicted probabilities for each site --- ???
-data.frame(Group1 = as.numeric(speciesFullCl$ALL$cl==1), Prob = pcv, Prob_CV = pcv)
+# sc[1]
+# colnames(sc[[1]]$C)
+# plot(sc[[i]]$A, type="A", main=label, nboot.CI=TRUE)
 
 
 # 7.
 
+# Need to build new dataframe for the output
+#-------------------------------------------
+i <- 1
+# Table 1. Cl | Name | Sites | Spp | Ind | Valid | Final | Cover
+# Cl = cluster number
+# Name = descriptive name --- make it up
+# Sites = number of sites (cluster.freq.RDS)
+# Ind = number of candidate species --- what is candidate? from IndVal()?
+# Valid = number of valid indicators
+# Final = smallest set of valid indicators with the same coverage as the complete set 
+# Cover = percentage coverage of the final set of valid indicators (output from pruneindicators())
+
+# 1 name - site group
+cl <- names(sc[[i]])
+# number of sites
+sites <- cl.freq$Freq[cl.freq$cl==(i)]
+# number of candidate species
+nCan <- length(sc[[i]]$candidates)
+# Valid 
+df <- print(sc[[i]])
+sppInd <- row.names(df)
+length(sppInd)
+# Final - output from prune
+df <- print(sc2[[i]])
+finalInd <- row.names(df)
+length(finalInd)
+
+# coverage --- I don't think this is the right objects
+coverage(sppComb,indvalspcomb)
+
+
+# Table 2. Cl | Name | Indicators | A (95CI) | B (95CI) | sqrt(IV)(95CI)
+#-----------------------------------------------------------------------
+# 1 name - site group
+cl <- names(sc[[i]])
+
+# # 16 species (individual species)
+# sppUsed <- colnames(sc[[i]]$C)
+# sc[[i]]$candidates # 29 
+# sc[[i]]$finalsplist # 16 
+
+# 42 species combinations --- change this to final list after pruning?
+df <- print(sc[[i]])
+sppInd <- row.names(df)
+pos.predict <- sc[[i]]$A %>% 
+  rename(A = stat,
+         A.lci = lowerCI,
+         A.uci = upperCI)
+sensitivity <- sc[[i]]$B %>% 
+  rename(B = stat,
+         B.lci = lowerCI,
+         B.uci = upperCI)
+sqrtIV <- sc[[i]]$sqrtIV %>% 
+  rename(sqrtIV = stat)
+
+final <- cbind(sppInd, pos.predict, sensitivity, sqrtIV)
+final
+write_csv(final, "Table2.csv")
+# To Do *1:  Compare final with print(sc[[i]])
+#            Look in examples
+#       *2:  Build plots
+#            Add an order column, Fig 4 (how many indicators are combos? etc.)
+
+
+
+
+
+# ## Run indicator analysis with species combinations for the first group,
+# ## but forcing 'Orysp' to be in all combinations
+# sc2= indicators(X=sppObs[,sel], cluster=clusters, group=1, verbose=TRUE, At=At, Bt=Bt, enableFixed=TRUE)
+# 
+# sc= indicators(X=sppComb[,sel], cluster=clusters, group=2, max.order = 2, verbose=TRUE, At=0.5, Bt=0.3)
+# print(sc, sqrtIVt = 0.02) 
+# summary(sc[[i]])
+# 
+# signassoc(X=sppComb[,sel], cluster=clusters, mode=1, control = how(nperm=999))
+# ## Look for species whose abundance is significantly higher in sites belonging
+# ## to one group as opposed to sites not belonging to it.
+# signassoc(X=sppComb[,sel], cluster=clusters, mode=0, control = how(nperm=999))
+# 
+# 
+# # Prune indicators to determine if coverage is changed with a smaller set of indicators
+# # output does not match example in tutorial
+# sc2 <- pruneindicators(sc, At=0.5, Bt=0.2, verbose=TRUE)
+# print(sc2)
+# 
+# # predict indicators
+# pcv <- predict(sc2, sppObs, cv=TRUE)
+# pcv1 <- predict(sc, cv=TRUE)
+# 
+# # Compared predicted probabilities for each site --- ???
+# data.frame(Group1 = as.numeric(speciesFullCl$ALL$cl==1), Prob = pcv, Prob_CV = pcv)
+# 
+
+# 7.
+
 # Create summary output
+#----------------------
 # Table 1. Cl | Name | Sites | Spp | Ind | Valid | Final | Cover
 # Cl = cluster number
 # Name = descriptive name 
@@ -244,6 +329,5 @@ data.frame(Group1 = as.numeric(speciesFullCl$ALL$cl==1), Prob = pcv, Prob_CV = p
 # Final = smallest set of valid indicators with the same coverage as the complete set --- how to calculate??
 # Cover = percentage coverage of the final set of valid indicators (output from pruneindicators())
 
-# Table 2. Cl | Name | Indicators | A (95CI) | B (95CI) | sprt(IV)(95CI)
 
-# Cluster | Descript name | No.Sites | No. of Candidate Species | Ind
+
