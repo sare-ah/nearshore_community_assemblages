@@ -234,7 +234,7 @@ order.cl <- function(x){
 }
 par(mfrow = c(2,2))
 cluster.frq <- lapply( colorcount, order.cl )
-saveRDS( cluster.frq, "cluster.freq.RDS" )
+saveRDS( cluster.frq, "../../RDS/cluster.freq.RDS" )
 cluster.frq
 par(mfrow = c(1,1))
 
