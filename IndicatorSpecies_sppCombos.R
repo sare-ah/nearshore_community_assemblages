@@ -95,6 +95,7 @@ df <- as.data.frame( sppAll_long %>%
 thrshld <- data.frame( cl=as.integer(cl.freq$cl), thrshld = round(nSiteCl * cl.freq$Freq) )
 
 # Determine number of species that meet frequency threshold
+# Check what happens to species with low in one cl and high in another
 newSpp <- left_join(df, thrshld, by="cl")
 newSpp$IN <- (newSpp$nSites - newSpp$thrshld)
 newSpp <- filter(newSpp, IN>=0)
@@ -111,31 +112,26 @@ sppObs[is.na(sppObs)] <- 0
 head(sppObs, 3)
 
 
-# Multipatt() multi-level pattern analysis 
-#-----------------------------------------
-indval = multipatt(x = sppObs, cluster = clusters, max.order = 4, control = how(nperm=999))
-summary(indval)
-
-
-# Determine if the frequency of species in each site group was higher or lower than random
-#-----------------------------------------------------------------------------------------
-# Test the association btw species & each group of sites
-# uses psidak correction 
-# What am I comparing this output too?
-prefsign <- signassoc( sppObs, cluster=clusters, alternative = "two.sided", control = how(nperm=199) )
-head(prefsign)
-
- 
-# Determine the quantity coverage of the site group
-#--------------------------------------------------
+# Determine the quantity coverage of the site group using multi-level pattern analysis 
+#-------------------------------------------------------------------------------------
 # The proportion of sites of a given site group where one or another indicator is found
 indvalori <- multipatt(sppObs, clusters, duleg = TRUE, control = how(nperm=999))
 summary(indvalori)
+print(indvalori)
 
+# # Determine if the frequency of species in each site group was higher or lower than random
+# #-----------------------------------------------------------------------------------------
+# # Test the association btw species & each group of sites
+# # uses psidak correction 
+# # What am I comparing this output too?
+# prefsign <- signassoc( sppObs, cluster=clusters, alternative = "two.sided", control = how(nperm=199) )
+# head(prefsign)
+
+ 
 # Calculate the proportion of sites of the target site group where one or another indicator is found
 #---------------------------------------------------------------------------------------------------
 coverage(sppObs,indvalori)
-coverage(sppObs, indvalori, At = 0.4, alpha = 0.05) # bound coverage by A & p-value
+coverage(sppObs, indvalori, At = At, Bt=Bt, alpha = 0.05) # bound coverage by A & p-value
  
 
 # Plot how coverage changes with 'A' threshold
@@ -145,11 +141,11 @@ par(mfrow = c(1,1))
 png("Coverage_noSppCombos.png")
 plotcoverage(x=sppObs, y=indvalori, group="1", lty=1)
 plotcoverage(x=sppObs, y=indvalori, group="2", lty=2, col="blue", add=TRUE)
-plotcoverage(x=sppObs, y=indvalori, group="3", lty=3, col="red", add=TRUE)
-plotcoverage(x=sppObs, y=indvalori, group="4", lty=3, col="green", add=TRUE)
+plotcoverage(x=sppObs, y=indvalori, group="3", lty=1, col="green", add=TRUE)
+plotcoverage(x=sppObs, y=indvalori, group="4", lty=2, col="red", add=TRUE)
 #plotcoverage(x=sppObs, y=indvalori, group="5", lty=3, col="purple", add=TRUE)
 legend(x = 0.01, y=30,legend=c("group 1","group 2","group 3","group 4"),
-       lty=c(1,2,3), col=c("black","blue","red","green"), bty="n")
+       lty=c(1,2), col=c("black","blue","green","red"), bty="n")
 dev.off()
 
 # Species combinations as indicators of site groups --- #4
@@ -159,19 +155,27 @@ dev.off()
 sppComb <- combinespecies(sppObs, max.order = max.order)$XC #...slow
 dim(sppComb)
 saveRDS(sppComb, "sppComb.RDS")
+sppComb <- readRDS("sppComb.RDS")
 
 # Re-run mulitpatt with species combinations ADD CI
 indvalspcomb = multipatt(sppComb, clusters, duleg = TRUE, control = how(nperm=999))#...slow
 # List species with a significant association to one combination, including indval components
 summary(indvalspcomb, indvalcomp = TRUE) 
 saveRDS(indvalspcomb, "SpeciesComboMultipatt.RDS")
+indvalspcomb <- readRDS("SpeciesComboMultipatt.RDS")
+
+# sel <- which(B[,1]>0.2)
+# sc.grp1 <- indicators(X=sppObs[,sel], cluster=clusters, group=1, max.order=max.order, 
+#                       verbose=TRUE, XC=TRUE, nboot=1000, At=At, Bt=Bt)
+# print(sc.grp1)
+# summary(sc.grp1)
 
 # Coverage - proportion of sites where one or another indicator is found
 # To Do: look at options for this function
 coverageSC <- coverage(sppComb,indvalspcomb)
-coverageSD <- coverage(sppComb, indvalspcomb, At=0.6, alpha = 0.05)
+coverageSD <- coverage(sppComb, indvalspcomb, At=0.6, Bt=Bt, alpha = 0.05)
 # Create output with A, B, or indval stat > some threshold to reduce output
-#...
+# How does coverage improve with species combinations
 
 # Plot how coverage changes with 'A' threshold
 #---------------------------------------------
@@ -180,12 +184,19 @@ par(mfrow = c(1,1))
 png("Coverage_SppCombos.png")
 plotcoverage(x=sppComb, y=indvalspcomb, group="1", lty=1)
 plotcoverage(x=sppComb, y=indvalspcomb, group="2", lty=2, col="blue", add=TRUE)
-plotcoverage(x=sppComb, y=indvalspcomb, group="3", lty=3, col="red", add=TRUE)
-plotcoverage(x=sppComb, y=indvalspcomb, group="4", lty=3, col="green", add=TRUE)
+plotcoverage(x=sppComb, y=indvalspcomb, group="3", lty=1, col="green", add=TRUE)
+plotcoverage(x=sppComb, y=indvalspcomb, group="4", lty=2, col="red", add=TRUE)
 #plotcoverage(x=sppObs, y=indvalori, group="5", lty=3, col="purple", add=TRUE)
 legend(x = 0.01, y=30,legend=c("group 1","group 2","group 3","group 4"),
-       lty=c(1,2,3), col=c("black","blue","red","green"), bty="n")
+       lty=c(1,2), col=c("black","blue","green","red"), bty="n")
 dev.off()
+
+data <- data.frame(
+  Cluster=names(coverageSD),
+  Coverage=coverageSD)
+data
+ggplot(data, aes(x=Cluster, y=Coverage)) +
+  geom_bar(stat="identity")
 
 # Determine indicators for each group 
 #------------------------------------
@@ -197,6 +208,7 @@ B <- strassoc( sppObs, cluster=clusters, func="B" )
 # Create empty lists for loop outputs
 sc <- vector("list",length(unique(clusters)))
 sc2 <- vector("list",length(unique(clusters)))
+indCombs <- vector("list",length(unique(clusters)))
 
 for (i in 1:length(unique(clusters))){
   label <- paste0("Group ",i)
@@ -206,6 +218,7 @@ for (i in 1:length(unique(clusters))){
   # Run indicator analysis with species combinations
   sc[[i]] <- indicators(X=sppObs[,sel], cluster=clusters, group=i, max.order=max.order, 
                verbose=TRUE, XC=TRUE, nboot=1000, At=At, Bt=Bt)
+  indCombs[[i]] <- colnames(X)
   print(sc[[i]]) 
   print(length(sel))
   # Determine if combinations improve coverage
@@ -235,6 +248,8 @@ sc.4 <- sc[4]
 new.cov <- coverage(sc.4, max.order=3)
 
 
+# Species combin
+
 # Clean up
 par(mfrow = c(1,1))
 saveRDS(sc, "Indicators4Clusters.RDS")
@@ -250,7 +265,7 @@ rm(cluster.freq)
 i <- 1
 i <- 2
 # Table 1. Cl | Name | Sites | Spp | Ind | Valid | Final | Cover
-# Cl = cluster number
+
 # Name = descriptive name --- make it up
 # Sites = number of sites (cluster.freq.RDS)
 # Ind = number of candidate species --- what is candidate? from IndVal()?
@@ -258,26 +273,29 @@ i <- 2
 # Final = smallest set of valid indicators with the same coverage as the complete set 
 # Cover = percentage coverage of the final set of valid indicators (output from pruneindicators())
 
-nCl <- as.vector(integer())
-nSites <- as.vector(integer())
-nCandidate <- as.vector(integer())
-nValid <- as.vector(integer())
-nFinal <- as.vector(integer())
+nCl <- as.vector(integer()) #1 cluster 
+nSites <- as.vector(integer()) #3 Number of sites (cluster.freq.RDS)
+nCandidate <- as.vector(integer()) #4 Number of candidate species - what is candidate? from IndVal()?
+nIndComb <- as.vector(integer()) #5 Number of indicators(single+combo) considered
+nValid <- as.vector(integer()) #6 Number of valid indicators
+nFinal <- as.vector(integer()) #7 Smallest set of valid indicators w/same coverage as the complete set (after pruning)
 sppInd <- vector("list", nrow(cl.freq))
 
 for (i in 1:nrow(cl.freq)){
   print(i)
-  # 1 name - site group
+  # Cluster number
   nCl[i] <- i
-  # number of sites
+  # Sites
   nSites[i] <- cl.freq$Freq[cl.freq$cl==(i)]
-  # number of candidate species
+  # Candidate species
   nCandidate[i] <- length(sc[[i]]$candidates)
-  # Valid 
+  # Indicator combos considered
+  
+  # Valid indicators
   df <- print(sc[[i]])
   sppInd[[i]] <- row.names(df)
   nValid[i] <- length(sppInd)
-  # Final - output from prune
+  # Final indicators - output from prune
   df <- print(sc2[[i]])
   finalInd <- row.names(df)
   nFinal[i] <- length(finalInd)
@@ -371,9 +389,12 @@ out
 # # output does not match example in tutorial
 # sc2 <- pruneindicators(sc, At=0.5, Bt=0.2, verbose=TRUE)
 # print(sc2)
-# 
+
+
+
 # # predict indicators
-# pcv <- predict(sc2, sppObs, cv=TRUE)
+p <- predict(sc2[1], sppObs)
+pcv <- predict(sc2, sppObs, cv=TRUE)
 # pcv1 <- predict(sc, cv=TRUE)
 # 
 # # Compared predicted probabilities for each site --- ???
