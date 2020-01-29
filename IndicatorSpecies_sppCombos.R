@@ -22,18 +22,16 @@ rm(list=ls())
 #--------------
 
 library(tidyverse)
-#library(labdsv) # indval() indicator species analysis
 library(indicspecies) # multipatt() multi-level pattern analysis
 library(rstudioapi)
-library(vegan)
 
 
 # Inputs
 #-------
 nSiteCl <- 0.20 # Threshold of sites a species is present in for each cluster 
 max.order <- 3  # Maximum number of species combinations
-At <- 0.6       # Threshold for positive predictive value
-Bt <- 0.25      # Threshold for sensitivity
+At <- 0.6       # Threshold for positive predictive value (specificity)
+Bt <- 0.25      # Threshold for sensitivity (fidelity)
 
 
 # Get path for this script
@@ -45,7 +43,7 @@ getwd()
 
 # Source functions
 #-----------------
-#source('CommunityAssemblages_functions.R')
+#source('functions.R')
 
 # Set up new directory for all results
 #-------------------------------------
@@ -53,7 +51,6 @@ date <- format(Sys.Date(), "%b_%d")
 region <- "All"
 #outdir <- paste0(date,"_",region)
 outdir <- paste0("nSites",nSiteCl,"_maxCombo",max.order,"_At",At,"_Bt",Bt)
-#dsn.dir <- "SHP"
 
 setwd( "../Results") 
 if (dir.exists(outdir)){
@@ -61,7 +58,6 @@ if (dir.exists(outdir)){
 } else{
   dir.create(path = outdir)
   setwd(outdir)
-  #dir.create(dsn.dir)
 }
 getwd()
 
@@ -100,7 +96,7 @@ newSpp <- left_join(df, thrshld, by="cl")
 newSpp$IN <- (newSpp$nSites - newSpp$thrshld)
 newSpp <- filter(newSpp, IN>=0)
 targetSpp <- unique(newSpp$Spp)
-targetSpp
+sort(targetSpp)
 
 
 # Build cluster vector and new community data table  
@@ -119,19 +115,11 @@ indvalori <- multipatt(sppObs, clusters, duleg = TRUE, control = how(nperm=999))
 summary(indvalori)
 print(indvalori)
 
-# # Determine if the frequency of species in each site group was higher or lower than random
-# #-----------------------------------------------------------------------------------------
-# # Test the association btw species & each group of sites
-# # uses psidak correction 
-# # What am I comparing this output too?
-# prefsign <- signassoc( sppObs, cluster=clusters, alternative = "two.sided", control = how(nperm=199) )
-# head(prefsign)
-
  
 # Calculate the proportion of sites of the target site group where one or another indicator is found
 #---------------------------------------------------------------------------------------------------
 coverage(sppObs,indvalori)
-coverage(sppObs, indvalori, At = At, Bt=Bt, alpha = 0.05) # bound coverage by A & p-value
+coverage(sppObs, indvalori, At = At, Bt=Bt, alpha = 0.05) # bound coverage by At, Bt, & p-value
  
 
 # Plot how coverage changes with 'A' threshold
@@ -164,18 +152,10 @@ summary(indvalspcomb, indvalcomp = TRUE)
 saveRDS(indvalspcomb, "SpeciesComboMultipatt.RDS")
 indvalspcomb <- readRDS("SpeciesComboMultipatt.RDS")
 
-# sel <- which(B[,1]>0.2)
-# sc.grp1 <- indicators(X=sppObs[,sel], cluster=clusters, group=1, max.order=max.order, 
-#                       verbose=TRUE, XC=TRUE, nboot=1000, At=At, Bt=Bt)
-# print(sc.grp1)
-# summary(sc.grp1)
-
 # Coverage - proportion of sites where one or another indicator is found
-# To Do: look at options for this function
 coverageSC <- coverage(sppComb,indvalspcomb)
 coverageSD <- coverage(sppComb, indvalspcomb, At=0.6, Bt=Bt, alpha = 0.05)
-# Create output with A, B, or indval stat > some threshold to reduce output
-# How does coverage improve with species combinations
+
 
 # Plot how coverage changes with 'A' threshold
 #---------------------------------------------
@@ -191,12 +171,6 @@ legend(x = 0.01, y=30,legend=c("group 1","group 2","group 3","group 4"),
        lty=c(1,2), col=c("black","blue","green","red"), bty="n")
 dev.off()
 
-data <- data.frame(
-  Cluster=names(coverageSD),
-  Coverage=coverageSD)
-data
-ggplot(data, aes(x=Cluster, y=Coverage)) +
-  geom_bar(stat="identity")
 
 # Determine indicators for each group 
 #------------------------------------
@@ -244,12 +218,6 @@ for (i in 1:length(unique(clusters))){
   print(sc2[[i]])
 }
 
-sc.4 <- sc[4]
-new.cov <- coverage(sc.4, max.order=3)
-
-
-# Species combin
-
 # Clean up
 par(mfrow = c(1,1))
 saveRDS(sc, "Indicators4Clusters.RDS")
@@ -262,24 +230,14 @@ rm(cluster.freq)
 
 # Need to build new dataframe for the output
 #-------------------------------------------
-i <- 1
-i <- 2
 # Table 1. Cl | Name | Sites | Spp | Ind | Valid | Final | Cover
-
-# Name = descriptive name --- make it up
-# Sites = number of sites (cluster.freq.RDS)
-# Ind = number of candidate species --- what is candidate? from IndVal()?
-# Valid = number of valid indicators
-# Final = smallest set of valid indicators with the same coverage as the complete set 
-# Cover = percentage coverage of the final set of valid indicators (output from pruneindicators())
-
 nCl <- as.vector(integer()) #1 cluster 
 nSites <- as.vector(integer()) #3 Number of sites (cluster.freq.RDS)
 nCandidate <- as.vector(integer()) #4 Number of candidate species - what is candidate? from IndVal()?
-nIndComb <- as.vector(integer()) #5 Number of indicators(single+combo) considered
 nValid <- as.vector(integer()) #6 Number of valid indicators
 nFinal <- as.vector(integer()) #7 Smallest set of valid indicators w/same coverage as the complete set (after pruning)
-sppInd <- vector("list", nrow(cl.freq))
+sppInd <- vector("list", nrow(cl.freq)) # List of valid indicators (single species + valid species combinations)
+finalInd <- vector("list", nrow(cl.freq)) # List of final indicators (single species + valid species combinations)
 
 for (i in 1:nrow(cl.freq)){
   print(i)
@@ -289,20 +247,19 @@ for (i in 1:nrow(cl.freq)){
   nSites[i] <- cl.freq$Freq[cl.freq$cl==(i)]
   # Candidate species
   nCandidate[i] <- length(sc[[i]]$candidates)
-  # Indicator combos considered
-  
-  # Valid indicators
+  # Valid indicators (species + species combinations)
   df <- print(sc[[i]])
   sppInd[[i]] <- row.names(df)
-  nValid[i] <- length(sppInd)
-  # Final indicators - output from prune
+  nValid[i] <- length(sppInd[[i]])
+  # Final indicators - output from prune()
   df <- print(sc2[[i]])
-  finalInd <- row.names(df)
-  nFinal[i] <- length(finalInd)
+  finalInd[[i]] <- row.names(df)
+  nFinal[i] <- length(finalInd[[i]])
 }
 
 site.Details <- as.data.frame( cbind(nCl, nSites, nCandidate, nValid, nFinal, coverageSC) )
-colnames(site.Details) <- c("Cluster","Num.Sites","Num.Candidate.Spp","Num.Valid.Spp","Num.Final.Spp","Coverage")
+colnames(site.Details) <- c("Cluster","Sites","Candidate.Spp","Valid.Spp+SppCombos","Pruned.Spp+SppCombos","Coverage")
+site.Details
 write_csv(site.Details, path="SiteCharacteristics.csv")
 saveRDS(site.Details, "SiteCharacteristics.RDS")
 
@@ -317,49 +274,35 @@ for (i in 1:length(sc)){
   df <- print(sc[[i]])
   sppInd <- row.names(df)
   pos.predict <- sc[[i]]$A %>% 
-    rename(A = stat,
-           A.lci = lowerCI,
-           A.uci = upperCI)
+    select(lowerCI, upperCI) %>%
+    rename(A.lowerCI = lowerCI,
+           A.upperCI = upperCI)
   sensitivity <- sc[[i]]$B %>% 
-    rename(B = stat,
-           B.lci = lowerCI,
-           B.uci = upperCI)
+    select(lowerCI, upperCI) %>%
+    rename(B.lowerCI = lowerCI,
+           B.upperCI = upperCI)
   sqrtIV <- sc[[i]]$sqrtIV %>% 
-    rename(sqrtIV = stat)
+    select(lowerCI, upperCI) %>%
+    rename(sqrtIV.lowerCI = lowerCI,
+           sqrtIV.upperCI = upperCI)
   valIndLst[[i]]$final <- cbind(sppInd, pos.predict, sensitivity, sqrtIV)
   write_csv(valIndLst[[i]]$final, path=paste0("ValidInd.Grp",i,".csv") )
   print(nrow(valIndLst[[i]]$final) )
 }
+valIndLst
 saveRDS(valIndLst, "ValidIndicatorsTbl.RDS")
 
-# Indicator power
-#----------------
-# IP values
-ip <- indpower(sppObs)
-diag(ip) <- NA
-# And TIP values
-(TIP <- rowMeans(ip, na.rm = T))
-## p value calculation for a species from Halme et al. 2009
-## i is ID for the species
-i <- 1
-fun <- function(x, i) indpower(x)[i,-i]
-## 'c0' randomizes species occurrences
-os <- oecosimu(sppObs, fun, "c0", i=i, nsimul=99)
-## get z values from oecosimu output
-z <- os$oecosimu$z
-## p-value
-(p <- sum(z) / sqrt(length(z)))
-## 'heterogeneity' measure
-(chi2 <- sum((z - mean(z))^2))
-pchisq(chi2, df=length(z)-1)
-## Halme et al.'s suggested output
-out <- c(TIP=TIP[i], 
-         significance=p,
-         heterogeneity=chi2,
-         minIP=min(fun(sppObs, i=i)),
-         varIP=sd(fun(sppObs, i=i)^2))
-out
-
+#final.df <- map(valIndLst, function)
+# library(tibble)
+# got_chars %>% {
+#   tibble(
+#     name = map_chr(., "name"),
+#     culture = map_chr(., "culture"),
+#     gender = map_chr(., "gender"),       
+#     id = map_int(., "id"),
+#     born = map_chr(., "born"),
+#     alive = map_lgl(., "alive")
+#   )
 
 # To Do *1:  Compare final with print(sc[[i]])
 #            Look in examples
@@ -401,4 +344,48 @@ pcv <- predict(sc2, sppObs, cv=TRUE)
 # data.frame(Group1 = as.numeric(speciesFullCl$ALL$cl==1), Prob = pcv, Prob_CV = pcv)
 # 
 
+#**********************#
+# Extras from tutorial
+#**********************#
 
+# # Determine if the frequency of species in each site group was higher or lower than random
+# #-----------------------------------------------------------------------------------------
+# # Test the association btw species & each group of sites
+# # uses psidak correction 
+# # What am I comparing this output too?
+# prefsign <- signassoc( sppObs, cluster=clusters, alternative = "two.sided", control = how(nperm=199) )
+# head(prefsign)
+
+
+
+
+
+
+
+# # Indicator power
+# #----------------
+# # IP values
+# ip <- indpower(sppObs)
+# diag(ip) <- NA
+# # And TIP values
+# (TIP <- rowMeans(ip, na.rm = T))
+# ## p value calculation for a species from Halme et al. 2009
+# ## i is ID for the species
+# i <- 1
+# fun <- function(x, i) indpower(x)[i,-i]
+# ## 'c0' randomizes species occurrences
+# os <- oecosimu(sppObs, fun, "c0", i=i, nsimul=99)
+# ## get z values from oecosimu output
+# z <- os$oecosimu$z
+# ## p-value
+# (p <- sum(z) / sqrt(length(z)))
+# ## 'heterogeneity' measure
+# (chi2 <- sum((z - mean(z))^2))
+# pchisq(chi2, df=length(z)-1)
+# ## Halme et al.'s suggested output
+# out <- c(TIP=TIP[i], 
+#          significance=p,
+#          heterogeneity=chi2,
+#          minIP=min(fun(sppObs, i=i)),
+#          varIP=sd(fun(sppObs, i=i)^2))
+# out
