@@ -265,14 +265,20 @@ saveRDS(site.Details, "SiteCharacteristics.RDS")
 
 # Table 2. Cl | Name | Indicators | A (95CI) | B (95CI) | sqrt(IV)(95CI)
 #-----------------------------------------------------------------------
-valIndLst <- vector("list", nrow(cl.freq) )
-
+# Build empty dataframe to populate
+valInd <- tibble("Cluster" = as.integer(),
+                     "Indicator" = as.character(),
+                     "A.lowerCI" = as.numeric(),
+                     "A.upperCI" = as.numeric(),
+                     "B.lowerCI" = as.numeric(),
+                     "B.upperCI" = as.numeric(),
+                     "sqrtIV.lowerCI" = as.numeric(),
+                     "sqrtIV.upperCI" = as.numeric())
+# Loop through each cluster and calculate columns for table
 for (i in 1:length(sc)){
-  # 1 name - site group
-  names(valIndLst)[i] <- i
-  print(i)
+  Cluster <- i
   df <- print(sc[[i]])
-  sppInd <- row.names(df)
+  Indicator <- as.character(row.names(df))
   pos.predict <- sc[[i]]$A %>% 
     select(lowerCI, upperCI) %>%
     rename(A.lowerCI = lowerCI,
@@ -285,24 +291,14 @@ for (i in 1:length(sc)){
     select(lowerCI, upperCI) %>%
     rename(sqrtIV.lowerCI = lowerCI,
            sqrtIV.upperCI = upperCI)
-  valIndLst[[i]]$final <- cbind(sppInd, pos.predict, sensitivity, sqrtIV)
-  write_csv(valIndLst[[i]]$final, path=paste0("ValidInd.Grp",i,".csv") )
-  print(nrow(valIndLst[[i]]$final) )
+  new.row <- cbind(Cluster, Indicator, pos.predict, sensitivity, sqrtIV, stringsAsFactors=FALSE)
+  valInd <- bind_rows(valInd, new.row)
 }
-valIndLst
+valInd
+write_csv(valInd, "ValidInd.Grp.csv")
 saveRDS(valIndLst, "ValidIndicatorsTbl.RDS")
 
-#final.df <- map(valIndLst, function)
-# library(tibble)
-# got_chars %>% {
-#   tibble(
-#     name = map_chr(., "name"),
-#     culture = map_chr(., "culture"),
-#     gender = map_chr(., "gender"),       
-#     id = map_int(., "id"),
-#     born = map_chr(., "born"),
-#     alive = map_lgl(., "alive")
-#   )
+
 
 # To Do *1:  Compare final with print(sc[[i]])
 #            Look in examples
