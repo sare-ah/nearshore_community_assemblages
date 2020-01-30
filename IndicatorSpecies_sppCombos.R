@@ -171,6 +171,7 @@ legend(x = 0.01, y=30,legend=c("group 1","group 2","group 3","group 4"),
        lty=c(1,2), col=c("black","blue","green","red"), bty="n")
 dev.off()
 
+# palette="Dark2"
 
 # Determine indicators for each group 
 #------------------------------------
@@ -269,10 +270,13 @@ saveRDS(site.Details, "SiteCharacteristics.RDS")
 valInd <- tibble("Cluster" = as.integer(),
                      "Indicator" = as.character(),
                      "A.lowerCI" = as.numeric(),
+                     "A" = as.numeric(),
                      "A.upperCI" = as.numeric(),
                      "B.lowerCI" = as.numeric(),
+                     "B" = as.numeric(),
                      "B.upperCI" = as.numeric(),
                      "sqrtIV.lowerCI" = as.numeric(),
+                     "sqrtIV" = as.numeric(),
                      "sqrtIV.upperCI" = as.numeric())
 # Loop through each cluster and calculate columns for table
 for (i in 1:length(sc)){
@@ -280,23 +284,94 @@ for (i in 1:length(sc)){
   df <- print(sc[[i]])
   Indicator <- as.character(row.names(df))
   pos.predict <- sc[[i]]$A %>% 
-    select(lowerCI, upperCI) %>%
+    select(stat, lowerCI, upperCI) %>%
     rename(A.lowerCI = lowerCI,
+           A = stat,
            A.upperCI = upperCI)
   sensitivity <- sc[[i]]$B %>% 
-    select(lowerCI, upperCI) %>%
+    select(stat, lowerCI, upperCI) %>%
     rename(B.lowerCI = lowerCI,
+           B = stat,
            B.upperCI = upperCI)
   sqrtIV <- sc[[i]]$sqrtIV %>% 
-    select(lowerCI, upperCI) %>%
+    select(stat, lowerCI, upperCI) %>%
     rename(sqrtIV.lowerCI = lowerCI,
+           sqrtIV = stat,
            sqrtIV.upperCI = upperCI)
   new.row <- cbind(Cluster, Indicator, pos.predict, sensitivity, sqrtIV, stringsAsFactors=FALSE)
   valInd <- bind_rows(valInd, new.row)
 }
 valInd
+df <- valInd
 write_csv(valInd, "ValidInd.Grp.csv")
-saveRDS(valIndLst, "ValidIndicatorsTbl.RDS")
+saveRDS(valInd, "ValidIndicatorsTbl.RDS")
+valInd <- readRDS("ValidIndicatorsTbl.RDS")
+
+
+new.df <- pivot_longer(valInd,col=3:11, names_to = "stat", values_to = "values") 
+new.df$Cluster <- as.factor(new.df$Cluster)
+
+# To add to plots:
+# Do I want to plot sqrtIV or mutate to IndVal?
+
+#png("PositivePredPwr_byCluster.png", res=72, height=800, width=1200)
+A.plot <- new.df %>%
+  filter(str_detect(stat,"A")) %>% 
+  ggplot( aes(x=Indicator, y=values, fill=Cluster)) +
+    geom_boxplot() +
+    ylab("Positive Predictive Power (A)") +
+    facet_wrap(~Cluster, scales = "free_x") +
+    scale_fill_brewer(palette="Dark2") +
+    theme_light() +
+    theme(strip.text.x = element_text(color="black")) +
+    theme(axis.text.x = element_text(angle=90, vjust=0.5, hjust=1)) 
+A.plot
+ggsave("PositivePredPwr_byCluster.png", A.plot, dpi = 300, width = 12, height = 12, path = getwd())
+  
+
+B.plot <- new.df %>%
+  filter(str_detect(stat,"B")) %>%
+  ggplot( aes(x=Indicator, y=values, fill=Cluster)) +
+    geom_boxplot() +
+    ylab("Sensitivity (B)") +
+    facet_wrap(~Cluster, scales = "free_x") +
+    scale_fill_brewer(palette="Dark2")+
+    theme_light() +
+    theme(strip.text.x = element_text(color="black")) +
+    theme(axis.text.x = element_text(angle=90, hjust=1))
+B.plot
+ggsave("Sensitivity_byCluster.png", A.plot, dpi = 300, width = 12, height = 12, path = getwd())
+
+
+I.plot <- new.df %>%
+  filter(str_detect(stat,"sqrt")) %>% 
+  mutate(Indicator = fct_reorder(Indicator,desc(values))) %>% 
+  ggplot( aes(x=Indicator, y=values, fill=Cluster)) +
+    geom_boxplot() +
+    ylab("Square root Indicator Value") +
+    facet_wrap(~Cluster, scales = "free_x") +
+    scale_fill_brewer(palette="Dark2") +
+    theme_light() +
+    theme(strip.text.x = element_text(color="black")) +
+    theme(axis.text.x = element_text(angle=90, hjust=1))
+I.plot
+ggsave("SqrtIndVal_byCluster.png", A.plot, dpi = 300, width = 12, height = 12, path = getwd())
+
+# # All metrics for each indicator in one cluster
+# new.df <- new.df %>%
+#   mutate(stat = replace(stat, str_detect(stat, "A"), "A")) %>% 
+#   mutate(stat = replace(stat, str_detect(stat, "B"), "B")) %>%
+#   mutate(stat = replace(stat, str_detect(stat, "sqrtIV"), "sqrtIV")) 
+# 
+# cl.plot <- dplyr::filter(new.df, Cluster==1)
+# cl.plot$Indicator <- with(cl.plot, reorder(Indicator, values)) 
+# cl.plot %>%
+#   ggplot( aes(x=Indicator, y=values, fill=stat)) +
+#   geom_boxplot() +
+#   scale_fill_brewer(palette="Dark2") +
+#   theme_classic() +
+#   theme(axis.text.x = element_text(angle=90, hjust=1)) +
+#   theme(panel.grid.major.y = element_line(colour = "grey"))
 
 
 
