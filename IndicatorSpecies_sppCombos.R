@@ -25,6 +25,9 @@ library(tidyverse)
 library(indicspecies) # multipatt() multi-level pattern analysis
 library(rstudioapi)
 
+# Start timer
+#------------
+start.time <- Sys.time()
 
 # Inputs
 #-------
@@ -67,7 +70,7 @@ getwd()
 # Species by region
 speciesFullCl <- readRDS("../../RDS/speciesFullCl.RDS")
 # Species list
-species <- readRDS("../../RDS/species.RDS")
+#species <- readRDS("../../RDS/species.RDS")
 # Cluster frequency
 cluster.freq <- readRDS("../../RDS/cluster.freq.RDS")
 
@@ -89,6 +92,7 @@ df <- as.data.frame( sppAll_long %>%
 
 # Threshold of sites for each cluster
 thrshld <- data.frame( cl=as.integer(cl.freq$cl), thrshld = round(nSiteCl * cl.freq$Freq) )
+thrshld
 
 # Determine number of species that meet frequency threshold
 # Check what happens to species with low in one cl and high in another
@@ -124,7 +128,6 @@ coverage(sppObs, indvalori, At = At, Bt=Bt, alpha = 0.05) # bound coverage by At
 
 # Plot how coverage changes with 'A' threshold
 #---------------------------------------------
-# Add code to save as .png
 par(mfrow = c(1,1))
 png("Coverage_noSppCombos.png")
 plotcoverage(x=sppObs, y=indvalori, group="1", lty=1)
@@ -159,7 +162,7 @@ coverageSD <- coverage(sppComb, indvalspcomb, At=0.6, Bt=Bt, alpha = 0.05)
 
 # Plot how coverage changes with 'A' threshold
 #---------------------------------------------
-# Add code to save as .png
+# Use this figure to determine the appropriate At threshold value to use
 par(mfrow = c(1,1))
 png("Coverage_SppCombos.png")
 plotcoverage(x=sppComb, y=indvalspcomb, group="1", lty=1)
@@ -190,8 +193,9 @@ for (i in 1:length(unique(clusters))){
   # Select species with more than 20% of sensitivity for group [[i]]
   sel <- which(B[,i]>0.2)
   names(sc)[[i]] <- i
+  X=sppObs[,sel]
   # Run indicator analysis with species combinations
-  sc[[i]] <- indicators(X=sppObs[,sel], cluster=clusters, group=i, max.order=max.order, 
+  sc[[i]] <- indicators(X=X, cluster=clusters, group=i, max.order=max.order, 
                verbose=TRUE, XC=TRUE, nboot=1000, At=At, Bt=Bt)
   indCombs[[i]] <- colnames(X)
   print(sc[[i]]) 
@@ -223,8 +227,10 @@ for (i in 1:length(unique(clusters))){
 par(mfrow = c(1,1))
 saveRDS(sc, "Indicators4Clusters.RDS")
 saveRDS(sc2, "PrunedIndicators4Clusters.RDS")
+saveRDS(indCombs, "IndicatorCombos.RDS")
 sc <- readRDS("Indicators4Clusters.RDS")
 sc2 <- readRDS("PrunedIndicators4Clusters.RDS")
+indCombs <- readRDS("IndicatorCombos.RDS")
 rm(cluster.freq) 
 
 # 7.
@@ -345,7 +351,6 @@ ggsave("Sensitivity_byCluster.png", A.plot, dpi = 300, width = 12, height = 12, 
 
 I.plot <- new.df %>%
   filter(str_detect(stat,"sqrt")) %>% 
-  mutate(Indicator = fct_reorder(Indicator,desc(values))) %>% 
   ggplot( aes(x=Indicator, y=values, fill=Cluster)) +
     geom_boxplot() +
     ylab("Square root Indicator Value") +
@@ -356,6 +361,18 @@ I.plot <- new.df %>%
     theme(axis.text.x = element_text(angle=90, hjust=1))
 I.plot
 ggsave("SqrtIndVal_byCluster.png", A.plot, dpi = 300, width = 12, height = 12, path = getwd())
+
+
+
+# ggplot(coverageSC, aes(fill=typeCnt, y=B, x=Cluster)) + 
+#   geom_bar(position="stack", stat="identity")
+
+# Time taken to run code
+#-----------------------
+end.time <- Sys.time()
+time.taken <- end.time - start.time
+time.taken
+
 
 # # All metrics for each indicator in one cluster
 # new.df <- new.df %>%
