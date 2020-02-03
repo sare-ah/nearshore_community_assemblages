@@ -32,7 +32,7 @@ for (i in 4:length(sc)){
   # Create a list of vectors for each new column for this cluster
   col_vectors <- list(
     indSp = indCombs,
-    B = (100*sc[[i]]$A$stat) )
+    A = (100*sc[[i]]$A$stat) )
   # Bind the list of vectors into new rows in a dataframe
   new.row <- bind_rows(col_vectors)
   # Add Cluster number
@@ -55,8 +55,12 @@ indCov
 
 # Try
 #----
-# Calculate coverage from 1 species
-# Calculate coverage from 2 species
+# Calculate coverage from 1 species only
+# Calculate coverage from 2 species only
+
+# What elements do we need for coverage()?
+# Can they be subset using [,]?
+
 # I give up!
 
 indCov$cum <- 

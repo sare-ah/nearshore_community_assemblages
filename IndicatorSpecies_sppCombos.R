@@ -35,6 +35,7 @@ nSiteCl <- 0.20 # Threshold of sites a species is present in for each cluster
 max.order <- 3  # Maximum number of species combinations
 At <- 0.6       # Threshold for positive predictive value (specificity)
 Bt <- 0.25      # Threshold for sensitivity (fidelity)
+region <- "HG"
 
 
 # Get path for this script
@@ -51,10 +52,8 @@ getwd()
 # Set up new directory for all results
 #-------------------------------------
 date <- format(Sys.Date(), "%b_%d")
-region <- "All"
 #outdir <- paste0(date,"_",region)
 outdir <- paste0("nSites",nSiteCl,"_maxCombo",max.order,"_At",At,"_Bt",Bt)
-
 setwd( "../Results") 
 if (dir.exists(outdir)){
   setwd(outdir)
@@ -78,15 +77,15 @@ cluster.freq <- readRDS("../../RDS/cluster.freq.RDS")
 # Determine which species occur in atleast _ _ % of target clusters --- #3
 #----------------------------------------------------------------
 # # Grab just one list element
-sppAll <- speciesFullCl$ALL
-cl.freq <- cluster.freq$ALL
+spp <- speciesFullCl[region]
+cl.freq <- cluster.freq[region]
 # 
 # # Create a long pivot table of all species present in each trans
-sppAll_long <- pivot_longer(sppAll, cols = 1:109, names_to = "Spp", values_to = "Presence")
-sppAll_long <- dplyr::filter( sppAll_long, Presence==1)
+spp_long <- pivot_longer(spp, cols = 1:109, names_to = "Spp", values_to = "Presence")
+spp_long <- dplyr::filter( spp_long, Presence==1)
 
 # Calculate number of sites for each cluster/species combination - reduce size of species combo matrix
-df <- as.data.frame( sppAll_long %>%
+df <- as.data.frame( spp_long %>%
   group_by(cl, Spp) %>%
   summarise(nSites = length(TransDepth)) )
 
@@ -105,9 +104,9 @@ sort(targetSpp)
 
 # Build cluster vector and new community data table  
 #--------------------------------------------------
-row.names(sppAll) <- sppAll$TransDepth
-clusters <- sppAll$cl
-sppObs <- sppAll[,targetSpp]
+row.names(spp) <- spp$TransDepth
+clusters <- spp$cl
+sppObs <- spp[,targetSpp]
 sppObs[is.na(sppObs)] <- 0
 head(sppObs, 3)
 
@@ -197,8 +196,10 @@ for (i in 1:length(unique(clusters))){
   # Run indicator analysis with species combinations
   sc[[i]] <- indicators(X=X, cluster=clusters, group=i, max.order=max.order, 
                verbose=TRUE, XC=TRUE, nboot=1000, At=At, Bt=Bt)
-  indCombs[[i]] <- colnames(X)
-  print(sc[[i]]) 
+  #indCombs[[i]] <- colnames(X) # Species used in species combos
+  indCombs[[i]] <- data.frame(print(sc[[i]])) # Species and species combos
+  # df <- print(sc[[i]])
+  # Indicator <- as.character(row.names(df))
   print(length(sel))
   # Determine if combinations improve coverage
   par(mfrow = c(1,1))
@@ -232,6 +233,104 @@ sc <- readRDS("Indicators4Clusters.RDS")
 sc2 <- readRDS("PrunedIndicators4Clusters.RDS")
 indCombs <- readRDS("IndicatorCombos.RDS")
 rm(cluster.freq) 
+
+
+# # Change in coverage and number of species per indicator
+# #-------------------------------------------------------
+# # Select one element with a list of lists (nested list element selection)
+# sens <- lapply(sc, '[',7)
+# # indNmes <- sapply(indCombs, "[",1:4)
+# 
+# # Build empty dataframe
+# i = 4
+# #indCombs <- as.vector(c("LT", "AM", "AC+LT", "AC+NT"))
+# 
+# # indCov <- tibble("Cluster" = as.integer(),
+# #                  "indSp" = as.character(),
+# #                  "typeCnt" = as.numeric(),
+# #                  "B" = as.numeric())
+# # new.row <- indCov
+# 
+# new.row <- tibble("Cluster" = as.integer(),
+#                  "indSp" = as.character(),
+#                  "typeCnt" = as.numeric(),
+#                  "B" = as.numeric())
+# indCov <- vector("list",4)
+# 
+# 
+# # Loop through each cluster and populate
+# for (i in 1:length(sc)){
+#   # Create a list of vectors for each new column for this cluster
+#   col_vectors <- list(
+#     indSp = row.names(indCombs[[i]]),
+#     B = (100*sc[[i]]$B$stat) )
+#   # Bind the list of vectors into new rows in a dataframe
+#   new.row <- bind_rows(col_vectors)
+#   # Add Cluster number
+#   new.row$Cluster <- i
+#   # Calculate Indicator type
+#   new.row$typeCnt <- (1 + (str_count(new.row$indSp, pattern='\\+')) )
+#   #new.row$typeCnt <- paste0(new.row$typeCnt, " Species" )
+#   #indCov <- bind_rows(indCov, new.row)
+#   indCov[[i]] <- new.row
+# }
+# indCov
+# 
+# 
+# 
+# 
+# covAll <- vector("list",4)
+# #coverageSD <- coverage(sppComb, indvalspcomb, At=0.6, Bt=Bt, alpha = 0.05)
+# # 1         2         3         4 
+# # 0.7374582 0.4233171 0.9925373 0.6380449 
+# 
+# for (i in 1:length(sc)){
+#   # Build logic vectors
+#   df <- indCov[[i]]
+#   df <- df %>% 
+#           mutate(ind.1 = ifelse(df$typeCnt==1, TRUE, FALSE)) %>%
+#           mutate(ind.2 = ifelse(df$typeCnt==2, TRUE, FALSE)) %>%
+#           mutate(ind.3 = ifelse(df$typeCnt==3, TRUE, FALSE))
+#   covAll[[i]]$combo1 <- coverage(sc[[i]], indvalspcomb, selection=as.vector(df$ind.1), At=0.6, Bt=Bt, alpha = 0.05, type="lowerCI")
+#   covAll[[i]]$combo2 <- coverage(sc[[i]], indvalspcomb, selection=as.vector(df$ind.2), At=0.6, Bt=Bt, alpha = 0.05, type="lowerCI")
+#   covAll[[i]]$combo3 <- coverage(sc[[i]], indvalspcomb, selection=as.vector(df$ind.3), At=0.6, Bt=Bt, alpha = 0.05, type="lowerCI")
+#   covAll[[i]]$Sum <- covAll[[i]]$combo3 + (covAll[[i]]$combo3 - covAll[[i]]$combo2) + (covAll[[i]]$combo2 - covAll[[i]]$combo3)
+# }
+# # Coverage - proportion of sites where one or another indicator is found
+# coverageSC <- coverage(sppComb,indvalspcomb)
+# coverageSD <- coverage(sppComb, indvalspcomb, At=0.6, Bt=Bt, alpha = 0.05)
+# 
+# cov.new <- coverage(sc, indvalspcomb, At=0.6, Bt=Bt, alpha = 0.05) 
+# 
+# 
+# plotcoverage(sc[[i]], main=label)
+# plotcoverage(sc[[i]], max.order=1, add=TRUE, lty=2, col="red", alpha = 0.05)
+# legend(x=0.1, y=20, legend=c("Species combinations","Species singletons"),
+#        lty=c(1,2), col=c("black","red"), bty="n")
+# 
+# 
+# plot(sc[[i]], type="A", main=label)
+# plot(sc[[i]], type="B")
+# 
+# 
+# coverageSC <- coverage(sppComb,indvalspcomb)
+# coverageSD <- coverage(sppComb, indvalspcomb, At=0.6, Bt=Bt, alpha = 0.05)
+# covIndicators <- coverage(sc[[2]], indvalspcomb, selection=sc[[2]]$group.vec) #, At=0.6, Bt=Bt, alpha = 0.05)
+# 
+# 
+# plotcoverage(indCombs)
+# plotcoverage(indCombs, max.order=2, add=TRUE, lty=2)
+# 
+# 
+# # Subset sppComb by species indicator vector
+# for (i in 1:length(indCov)){
+#   sel <- indCov[[i]]$indSp
+#   newX <- sppComb[,sel]
+#   coverageX[[i]] <- coverage(sppComb, indvalspcomb, selection=sel) #, At=0.6, Bt=Bt, alpha = 0.05)
+# }
+
+
+
 
 # 7.
 
@@ -275,15 +374,15 @@ saveRDS(site.Details, "SiteCharacteristics.RDS")
 # Build empty dataframe to populate
 valInd <- tibble("Cluster" = as.integer(),
                      "Indicator" = as.character(),
-                     "A.lowerCI" = as.numeric(),
+                     "A.lCI" = as.numeric(),
                      "A" = as.numeric(),
-                     "A.upperCI" = as.numeric(),
-                     "B.lowerCI" = as.numeric(),
+                     "A.uCI" = as.numeric(),
+                     "B.lCI" = as.numeric(),
                      "B" = as.numeric(),
-                     "B.upperCI" = as.numeric(),
-                     "sqrtIV.lowerCI" = as.numeric(),
+                     "B.uCI" = as.numeric(),
+                     "sqrtIV.lCI" = as.numeric(),
                      "sqrtIV" = as.numeric(),
-                     "sqrtIV.upperCI" = as.numeric())
+                     "sqrtIV.uCI" = as.numeric())
 # Loop through each cluster and calculate columns for table
 for (i in 1:length(sc)){
   Cluster <- i
@@ -291,25 +390,26 @@ for (i in 1:length(sc)){
   Indicator <- as.character(row.names(df))
   pos.predict <- sc[[i]]$A %>% 
     select(stat, lowerCI, upperCI) %>%
-    rename(A.lowerCI = lowerCI,
+    rename(A.lCI = lowerCI,
            A = stat,
-           A.upperCI = upperCI)
+           A.uCI = upperCI)
   sensitivity <- sc[[i]]$B %>% 
     select(stat, lowerCI, upperCI) %>%
-    rename(B.lowerCI = lowerCI,
+    rename(B.lCI = lowerCI,
            B = stat,
-           B.upperCI = upperCI)
+           B.uCI = upperCI)
   sqrtIV <- sc[[i]]$sqrtIV %>% 
     select(stat, lowerCI, upperCI) %>%
-    rename(sqrtIV.lowerCI = lowerCI,
+    rename(sqrtIV.lCI = lowerCI,
            sqrtIV = stat,
-           sqrtIV.upperCI = upperCI)
+           sqrtIV.uCI = upperCI)
   new.row <- cbind(Cluster, Indicator, pos.predict, sensitivity, sqrtIV, stringsAsFactors=FALSE)
   valInd <- bind_rows(valInd, new.row)
 }
 valInd
-df <- valInd
+df.1 <- dplyr::filter(valInd, Cluster==2)
 write_csv(valInd, "ValidInd.Grp.csv")
+write_csv(df.1, "ValidInd.Grp2.csv")
 saveRDS(valInd, "ValidIndicatorsTbl.RDS")
 valInd <- readRDS("ValidIndicatorsTbl.RDS")
 
@@ -363,7 +463,7 @@ I.plot
 ggsave("SqrtIndVal_byCluster.png", A.plot, dpi = 300, width = 12, height = 12, path = getwd())
 
 
-
+plotcoverage(sppComb,indvalspcomb, by=0.5, type="stat")
 # ggplot(coverageSC, aes(fill=typeCnt, y=B, x=Cluster)) + 
 #   geom_bar(position="stack", stat="identity")
 
