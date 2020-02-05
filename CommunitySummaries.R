@@ -28,8 +28,10 @@ dsn <- "SHP"
 
 # Read in species by regions
 #---------------------------
-sppByRegion <- readRDS("C:/Users/daviessa/Documents/R/PROJECTS_MY/DiveSurveys_DataPrep/Data/RDS/sppByRegion.rds")
+sppByRegion <- readRDS("C:/Users/daviessa/Documents/R/PROJECTS_MY/DiveSurveys_DataPrep/Data/RDS/sppByRegion.AllBC.rds")
 sppDF <- readRDS("C:/Users/daviessa/Documents/R/PROJECTS_MY/DiveSurveys_DataPrep/Data/RDS/sppByRegion_Dataframe.rds")
+
+nElements <- length(sppByRegion)
 
 # Get path for this script
 #-------------------------
@@ -69,7 +71,7 @@ luTbl <- read.csv( "T:/Benthic_Habitat_Mapping/Data/Look-upTbls/SpeciesLookUpTbl
 
 
 # --- Build list of summary stats --- #
-summariesByRegion <- vector("list", 4)
+summariesByRegion <- vector("list", nElements)
 
 # Calculate summaries
 for (i in 1:length(sppByRegion)){
@@ -112,13 +114,13 @@ p <- ggplot(flat2, aes(x=region, y=spCnt)) +
 p
 ggsave("CountOfSpeciesByRegion.png", p)
 
-# Summary table
+# Summary table - Sampling units and mean number of species observed per sampling area
 nUnitsSum <- flat2 %>%
   group_by(region) %>%
   mutate(units = length(spCnt))%>%
-  mutate(mean = mean(spCnt)) %>%
-  mutate(min = min(spCnt)) %>%
-  mutate(max = max(spCnt)) %>%
+  mutate(mean.SpCnt = mean(spCnt)) %>%
+  mutate(min.SpCnt = min(spCnt)) %>%
+  mutate(max.SpCnt = max(spCnt)) %>%
   select(region, units, mean, min, max) %>%
   distinct(region, units, mean, min, max)
 nUnitsSum 
@@ -134,9 +136,9 @@ pair.w
 
 
 # --- Species accumulation curves --- #
-par(mfrow = c(2, 2))  # Set up a 2 x 2 plotting space
+par(mfrow = c(3, 2))  # Set up a 2 x 2 plotting space
 
-# Calculate summaries
+# Calculate summaries --- add save as png file
 for (i in 1:length(sppByRegion)){
   # Get region name
   names(summariesByRegion)[[i]] <- names(sppByRegion)[i]
@@ -152,7 +154,7 @@ for (i in 1:length(sppByRegion)){
 # Can be found in summariesByRegion[[i]]$sppFreq 
 
 # Build one large table of species X survey area
-foo <- vector("list", 4)
+foo <- vector("list", nElements)
 
 for (i in 1:length(summariesByRegion)){
   # Get region name
@@ -174,7 +176,7 @@ head(foo2)
 
 # Add species names and save
 foo2 <- right_join(luTbl, foo2, by="Species_Code")
-foo2 <- dplyr::select(foo2, Name, Species_Code, HG, NCC, QCS, SoG)
+foo2 <- dplyr::select(foo2, Name, Species_Code, HG, NCC, QCS, SoG, ALL)
 
 outfile <- paste(getwd(),"FreqOfOccurence_byRegion.csv",sep="/")
 write_csv(foo2, outfile)
@@ -241,6 +243,7 @@ head(bot20)
 # Start with sppDF RDS
 head(sppDF,3)
 # Recreate the depth category field and remove the transect HKey
+sppDF$TransDepth <- row.names(sppDF)
 df <- separate(sppDF, TransDepth, c(NA,"DepthCat"))
 head(df,3)
 # Melt dataframe to long format

@@ -27,7 +27,7 @@ library(rstudioapi)
 
 # Start timer
 #------------
-start.time <- Sys.time()
+#start.time <- Sys.time()
 
 # Inputs
 #-------
@@ -35,7 +35,7 @@ nSiteCl <- 0.20 # Threshold of sites a species is present in for each cluster
 max.order <- 3  # Maximum number of species combinations
 At <- 0.6       # Threshold for positive predictive value (specificity)
 Bt <- 0.25      # Threshold for sensitivity (fidelity)
-region <- "HG"
+region <- "ALL"
 
 
 # Get path for this script
@@ -53,7 +53,7 @@ getwd()
 #-------------------------------------
 date <- format(Sys.Date(), "%b_%d")
 #outdir <- paste0(date,"_",region)
-outdir <- paste0("nSites",nSiteCl,"_maxCombo",max.order,"_At",At,"_Bt",Bt)
+outdir <- paste0(region,".nSites",nSiteCl,"_maxCombo",max.order,"_At",At,"_Bt",Bt)
 setwd( "../Results") 
 if (dir.exists(outdir)){
   setwd(outdir)
@@ -68,6 +68,7 @@ getwd()
 #------------------
 # Species by region
 speciesFullCl <- readRDS("../../RDS/speciesFullCl.RDS")
+
 # Species list
 #species <- readRDS("../../RDS/species.RDS")
 # Cluster frequency
@@ -78,10 +79,15 @@ cluster.freq <- readRDS("../../RDS/cluster.freq.RDS")
 #----------------------------------------------------------------
 # # Grab just one list element
 spp <- speciesFullCl[region]
+spp <- map_dfr(spp,identity)
+d <- dim(spp)
+maxCols <- d[2]-2 # don't count TransDepth & cluster
+
 cl.freq <- cluster.freq[region]
-# 
-# # Create a long pivot table of all species present in each trans
-spp_long <- pivot_longer(spp, cols = 1:109, names_to = "Spp", values_to = "Presence")
+cl.freq <- map_dfr(cl.freq,identity)
+
+# Create a long pivot table of all species present in each trans
+spp_long <- pivot_longer(spp, cols = 1:maxCols, names_to = "Spp", values_to = "Presence")
 spp_long <- dplyr::filter( spp_long, Presence==1)
 
 # Calculate number of sites for each cluster/species combination - reduce size of species combo matrix
@@ -329,8 +335,8 @@ rm(cluster.freq)
 #   coverageX[[i]] <- coverage(sppComb, indvalspcomb, selection=sel) #, At=0.6, Bt=Bt, alpha = 0.05)
 # }
 
-
-
+plot.indicators(sc[[2]])#x, type="sqrtIV", maxline=TRUE, ...)
+# What is x$C - 
 
 # 7.
 
@@ -412,6 +418,8 @@ write_csv(valInd, "ValidInd.Grp.csv")
 write_csv(df.1, "ValidInd.Grp2.csv")
 saveRDS(valInd, "ValidIndicatorsTbl.RDS")
 valInd <- readRDS("ValidIndicatorsTbl.RDS")
+
+
 
 
 new.df <- pivot_longer(valInd,col=3:11, names_to = "stat", values_to = "values") 
@@ -523,9 +531,9 @@ time.taken
 
 
 
-# # predict indicators
-p <- predict(sc2[1], sppObs)
-pcv <- predict(sc2, sppObs, cv=TRUE)
+# # # predict indicators
+# p <- predict(sc2[1], sppObs)
+# pcv <- predict(sc2, sppObs, cv=TRUE)
 # pcv1 <- predict(sc, cv=TRUE)
 # 
 # # Compared predicted probabilities for each site --- ???
@@ -577,3 +585,32 @@ pcv <- predict(sc2, sppObs, cv=TRUE)
 #          minIP=min(fun(sppObs, i=i)),
 #          varIP=sd(fun(sppObs, i=i)^2))
 # out
+
+plot.indicators<-function(x, type="sqrtIV", maxline=TRUE, ...) {
+  A = x$A
+  B = x$B
+  sqrtIV=x$sqrtIV
+  order = rowSums(x$C)
+  if(is.data.frame(A)) {
+    if(type=="IV") val = sqrtIV[,1]^2
+    else if(type=="sqrtIV") val = sqrtIV[,1]
+    else if(type=="A") val = A[,1]	
+    else if(type=="B") val = B[,1]	
+    else if(type=="LA") val = A[,2]	
+    else if(type=="UA") val = A[,3]	
+    else if(type=="LB") val = B[,2]	
+    else if(type=="UB") val = B[,3]	
+    else if(type=="LsqrtIV") val = sqrtIV[,2]	
+    else if(type=="UsqrtIV") val = sqrtIV[,3]	
+  } else {
+    if(type=="IV") val = sqrtIV^2
+    else if(type=="sqrtIV") val = sqrtIV
+    else if(type=="A") val = A	
+    else if(type=="B") val = B	   	
+  }
+  plot(order,val, type="n", axes=FALSE, xlab="Order", ylab=type,...)	
+  points(order,val, pch=1, cex=0.5)	
+  axis(1, at = order, labels=order)
+  axis(2)
+  if(maxline) lines(1:max(order),tapply(val,order,max), col="gray")
+}

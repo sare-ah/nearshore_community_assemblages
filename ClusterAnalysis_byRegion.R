@@ -77,6 +77,7 @@ sp.pts <- cbind(sp@data,sp@coords)
 # Add all sites
 sppDF$Region <- NULL
 sppByRegion$ALL <- sppDF
+saveRDS(sppByRegion, "C:/Users/daviessa/Documents/R/PROJECTS_MY/DiveSurveys_DataPrep/Data/RDS/sppByRegion.AllBC.rds")
 
 # --- Remove rare species and barren sites from each region --- #
 # Create empty lists needed for outputs --- maybe we only need the listOfLists???
