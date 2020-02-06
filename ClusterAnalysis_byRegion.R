@@ -32,11 +32,18 @@ getwd()
 #-----------------
 source('CommunityAssemblages_functions.R')
 
+# Inputs
+#-------
+spThreshold <- 0.03 # Proportion of sites that a species must be found in
+siteThreshold <- 3 # Minimum number of species / site
+distance <- "simpson"
+clusterMethod <- "ward.D2" 
+
 # Set up new directory for all results
 #-------------------------------------
 date <- format(Sys.Date(), "%b_%d")
 region <- "All"
-outdir <- paste0(date,"_",region)
+outdir <- paste0("Cluster.",siteThreshold,"_",spThreshold,"_",region)
 dsn.dir <- "SHP"
 
 setwd( "../Results") 
@@ -49,12 +56,6 @@ if (dir.exists(outdir)){
 }
 getwd()
 
-# Inputs
-#-------
-spThreshold <- 0.03 # Proportion of sites that a species must be found in
-siteThreshold <- 3 # Minimum number of species / site
-distance <- "simpson"
-clusterMethod <- "ward.D2" 
 
 # Read in species by regions
 #---------------------------
@@ -79,12 +80,15 @@ sppDF$Region <- NULL
 sppByRegion$ALL <- sppDF
 saveRDS(sppByRegion, "C:/Users/daviessa/Documents/R/PROJECTS_MY/DiveSurveys_DataPrep/Data/RDS/sppByRegion.AllBC.rds")
 
+# Determine the number of elements within the site x species list
+nElements <- length(sppByRegion)
+
 # --- Remove rare species and barren sites from each region --- #
 # Create empty lists needed for outputs --- maybe we only need the listOfLists???
-listOfLists <- vector("list", 5)
-prep4Cluster <- vector("list", 5)
-rareSpp <- vector("list", 5)
-barrenSites <- vector("list", 5)
+listOfLists <- vector("list", nElements)
+prep4Cluster <- vector("list", nElements)
+rareSpp <- vector("list", nElements)
+barrenSites <- vector("list", nElements)
 
 # Calculate summaries
 for (i in 1:length(sppByRegion)){
@@ -138,7 +142,7 @@ rm(barrenSites,rareSpp,listOfLists,rare.wide,dsn.brrn,barren,barren_sp)
 
 # --- Run cluster analysis and build dendrogram --- #
 # Create empty list to store results
-myCluster <- vector("list", 5)
+myCluster <- vector("list", nElements)
 
 # Run cluster analysis
 for (i in 1:length(prep4Cluster)){
@@ -175,6 +179,7 @@ for (i in 1:length(myCluster)){
 # ncc <- myCluster$NCC$benthtree # seth = 5
 # qcs <- myCluster$QCS$benthtree # seth = 2
 # sog <- myCluster$SoG$benthtree # seth = 2
+# all <- myCluster$ALL$benthtree # seth = 8
 # 
 # benthtree <- sog
 # plot(benthtree, hang=-1)
@@ -203,7 +208,7 @@ for (i in 1:length(myCluster)){
 }
 
 # Build a new list of sliced trees
-cl.list <- vector("list",5)
+cl.list <- vector("list",nElements)
 for (i in 1:length(myCluster)){
   names(cl.list)[i] <- names(myCluster)[i]
   cl.list[[i]] <- myCluster[[i]]$sliceTree
@@ -223,6 +228,7 @@ colorcount <- lapply(colorcount, setNames, c.names)
 colorcount
 
 # Order clusters by frequency order 
+# Add region name to plots
 order.cl <- function(x){
   order <- data.frame( order=seq( 1:nrow(x) ),x[order(-x$Freq),] ) 
   order$cumsum <- cumsum( order$Freq )
@@ -233,7 +239,7 @@ order.cl <- function(x){
   abline( h=0.9, col="red" )
   return(order)
 }
-par(mfrow = c(2,2))
+par(mfrow = c(1,2))
 cluster.frq <- lapply( colorcount, order.cl )
 saveRDS( cluster.frq, "../../RDS/cluster.freq.RDS" )
 cluster.frq
@@ -262,7 +268,7 @@ for (i in 1:length(cluster.frq)){
 #myList <- myCluster
 
 # --- Create color-coded dendrogram....slow! --- #
-#colourTree <- vector("list",4)
+#colourTree <- vector("list",nElements)
 par(mfrow = c(2,2))
 # Create coloured trees
 for (i in 1:length(myCluster)){
@@ -314,5 +320,11 @@ saveRDS( speciesFullCl, "speciesFullCl.RDS" )
 # layer <- paste0("Cluster_treeHt",seth)
 # matFullCl <- makeShp( data=matFullCl, dsn=dsn, layer=layer )
 # mapview( matFullCl, zcol = "cl" )
+
+
+# Save the entire workspace
+#--------------------------
+save.image(file="my_work_space.RData")
+load("my_work_space.RData")
 
 

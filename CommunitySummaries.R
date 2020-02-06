@@ -31,6 +31,7 @@ dsn <- "SHP"
 sppByRegion <- readRDS("C:/Users/daviessa/Documents/R/PROJECTS_MY/DiveSurveys_DataPrep/Data/RDS/sppByRegion.AllBC.rds")
 sppDF <- readRDS("C:/Users/daviessa/Documents/R/PROJECTS_MY/DiveSurveys_DataPrep/Data/RDS/sppByRegion_Dataframe.rds")
 
+# Determine the number of elements within the site x species list
 nElements <- length(sppByRegion)
 
 # Get path for this script
@@ -287,6 +288,11 @@ p <- ggplot(invert.dc, aes(x=as.numeric(DepthCat),y=reorder(invert,desc(invert))
   theme(axis.text.y = element_text(face = "bold", size = 5))
 ggsave("InvertDepthCat_byRegion.png", p)  
 
+
+# Save the entire workspace
+#--------------------------
+save.image(file="my_work_space.RData")
+load("my_work_space.RData")
 
 
 

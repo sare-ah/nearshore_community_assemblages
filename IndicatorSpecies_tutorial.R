@@ -236,7 +236,7 @@ B=strassoc(sppObs, cluster=clusters,func="B")
 sel=which(B[,1]>0.2)
 sc= indicators(X=sppObs[,sel], cluster=clusters, group=1, max.order = 2, 
                verbose=TRUE, At=0.7, Bt=0.4)
-print(sc) 
+summary(sc) 
 ## Plots positive predictive power and sensitivity against the order of combinations
 plot(sc, type="A")
 plot(sc, type="B")
