@@ -43,7 +43,8 @@ clusterMethod <- "ward.D2"
 #-------------------------------------
 date <- format(Sys.Date(), "%b_%d")
 region <- "All"
-outdir <- paste0("Cluster.",siteThreshold,"_",spThreshold,"_",region)
+#outdir <- paste0(date,"Cluster.",siteThreshold,"_",spThreshold,"_",region)
+outdir <- "Cluster6.Dendrogram"
 dsn.dir <- "SHP"
 
 setwd( "../Results") 
@@ -179,7 +180,7 @@ for (i in 1:length(myCluster)){
 # ncc <- myCluster$NCC$benthtree # seth = 5
 # qcs <- myCluster$QCS$benthtree # seth = 2
 # sog <- myCluster$SoG$benthtree # seth = 2
-# all <- myCluster$ALL$benthtree # seth = 8
+# all <- myCluster$ALL$benthtree # seth = 8, changing to 5 for 10+ clusters
 # 
 # benthtree <- sog
 # plot(benthtree, hang=-1)
@@ -191,7 +192,7 @@ for (i in 1:length(myCluster)){
 # rect.hclust(benthtree, h=seth, border="red") # Cutoff based on visual inspection of the tree
 
 # Vector to entry heights from plots
-hts <- c(4,5,2,2,8) # corresponds to HG,NCC,QCS,SoG
+hts <- c(4,5,2,2,6) # corresponds to HG,NCC,QCS,SoG
 
 # Add height to large list
 for (i in 1:length(myCluster)){
@@ -241,12 +242,12 @@ order.cl <- function(x){
 }
 par(mfrow = c(1,2))
 cluster.frq <- lapply( colorcount, order.cl )
-saveRDS( cluster.frq, "../../RDS/cluster.freq.RDS" )
+saveRDS( cluster.frq, "cluster.freq.RDS" )
 cluster.frq
 par(mfrow = c(1,1))
 
 # Number of clusters that capture 90% of samples
-nTopClusters <- list(5,4,5,4,4)
+nTopClusters <- list(5,4,5,4, 6) #list(5,4,5,4,4) edited for ALL
 buildseq <- function(x){
   seq(1,(x),by=1)
 }

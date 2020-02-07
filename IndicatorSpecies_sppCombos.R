@@ -52,8 +52,8 @@ getwd()
 # Set up new directory for all results
 #-------------------------------------
 date <- format(Sys.Date(), "%b_%d")
-#outdir <- paste0(date,"_",region)
-outdir <- paste0(date,region,".nSites",nSiteCl,"_maxCombo",max.order,"_At",At,"_Bt",Bt)
+outdir <- "Cluster6"
+#outdir <- paste0(date,region,".nSites",nSiteCl,"_maxCombo",max.order,"_At",At,"_Bt",Bt)
 setwd( "../Results") 
 if (dir.exists(outdir)){
   setwd(outdir)
@@ -67,12 +67,13 @@ getwd()
 # Read in RDS files --- #1 & #2
 #------------------
 # Species by region
-speciesFullCl <- readRDS("../../RDS/speciesFullCl.RDS")
+speciesFullCl <- readRDS("speciesFullCl.RDS") # manually move correct matrix to working folder
+#speciesFullCl <- readRDS("../../RDS/speciesFullCl.RDS")
 
 # Species list
 #species <- readRDS("../../RDS/species.RDS")
 # Cluster frequency
-cluster.freq <- readRDS("../../RDS/cluster.freq.RDS")
+cluster.freq <- readRDS("cluster.freq.RDS")
 
 
 # Determine which species occur in atleast _ _ % of target clusters --- #3
@@ -136,15 +137,17 @@ coverage(sppObs, indvalori, At = At, Bt=Bt, alpha = 0.05) # bound coverage by At
 
 # Plot how coverage changes with 'A' threshold
 #---------------------------------------------
+# To do: Edit figure for number of clusters
 par(mfrow = c(1,1))
 png("Coverage_noSppCombos.png")
 plotcoverage(x=sppObs, y=indvalori, group="1", lty=1)
 plotcoverage(x=sppObs, y=indvalori, group="2", lty=2, col="blue", add=TRUE)
 plotcoverage(x=sppObs, y=indvalori, group="3", lty=1, col="green", add=TRUE)
 plotcoverage(x=sppObs, y=indvalori, group="4", lty=2, col="red", add=TRUE)
-#plotcoverage(x=sppObs, y=indvalori, group="5", lty=3, col="purple", add=TRUE)
-legend(x = 0.01, y=30,legend=c("group 1","group 2","group 3","group 4"),
-       lty=c(1,2), col=c("black","blue","green","red"), bty="n")
+plotcoverage(x=sppObs, y=indvalori, group="5", lty=3, col="purple", add=TRUE)
+plotcoverage(x=sppObs, y=indvalori, group="6", lty=3, col="grey", add=TRUE)
+legend(x = 0.01, y=30,legend=c("group 1","group 2","group 3","group 4","group 5","group 6"),
+       lty=c(1,2,3), col=c("black","blue","green","red","purple","grey"), bty="n")
 dev.off()
 
 # Species combinations as indicators of site groups --- #4
@@ -166,7 +169,7 @@ start.time <- Sys.time()
 indvalspcomb = multipatt(sppComb, clusters, duleg = TRUE, control = how(nperm=999))#...slow
 end.time <- Sys.time()
 time.taken <- end.time - start.time
-time.taken # ~ 45 minutes
+time.taken # ~ 45 minutes to 4 hours
 
 # List species with a significant association to one combination, including indval components
 summary(indvalspcomb, indvalcomp = TRUE) 
@@ -174,9 +177,9 @@ saveRDS(indvalspcomb, "SpeciesComboMultipatt.RDS")
 indvalspcomb <- readRDS("SpeciesComboMultipatt.RDS")
 
 # Coverage - proportion of sites where one or another indicator is found
-coverageSC <- coverage(sppComb,indvalspcomb)
-coverageSD <- coverage(sppComb, indvalspcomb, At=0.6, Bt=Bt, alpha = 0.05)
-
+coverage(sppComb,indvalspcomb)
+covSppComb <- coverage(sppComb, indvalspcomb, At=0.6, Bt=Bt, alpha = 0.05)
+covSppComb
 
 # Plot how coverage changes with 'A' threshold
 #---------------------------------------------
@@ -187,12 +190,20 @@ plotcoverage(x=sppComb, y=indvalspcomb, group="1", lty=1)
 plotcoverage(x=sppComb, y=indvalspcomb, group="2", lty=2, col="blue", add=TRUE)
 plotcoverage(x=sppComb, y=indvalspcomb, group="3", lty=1, col="green", add=TRUE)
 plotcoverage(x=sppComb, y=indvalspcomb, group="4", lty=2, col="red", add=TRUE)
-#plotcoverage(x=sppObs, y=indvalori, group="5", lty=3, col="purple", add=TRUE)
-legend(x = 0.01, y=30,legend=c("group 1","group 2","group 3","group 4"),
-       lty=c(1,2), col=c("black","blue","green","red"), bty="n")
+plotcoverage(x=sppComb, y=indvalspcomb, group="5", lty=3, col="purple", add=TRUE)
+plotcoverage(x=sppComb, y=indvalspcomb, group="6", lty=3, col="grey", add=TRUE)
+legend(x = 0.01, y=30,legend=c("group 1","group 2","group 3","group 4","group 5","group 6"),
+       lty=c(1,2,3), col=c("black","blue","green","red","purple","grey"), bty="n")
 dev.off()
 
 # palette="Dark2"
+
+# lapply(list, function)
+# # Convert list element to a dataframe
+# make_df <- function(x){
+#   as.data.frame(table(x))
+# }
+# colorcount <- lapply(cl.list, make_df )
 
 # Determine indicators for each group 
 #------------------------------------
@@ -202,45 +213,93 @@ B <- strassoc( sppObs, cluster=clusters, func="B" )
 
 # Loop through clusters and select species with more than 20% of sensitivity for the first group
 # Create empty lists for loop outputs
-sc <- vector("list",length(unique(clusters)))
-sc2 <- vector("list",length(unique(clusters)))
-indCombs <- vector("list",length(unique(clusters)))
+# sc2 <- vector("list",length(unique(clusters)))
+# indCombs <- vector("list",length(unique(clusters)))
+# names(sc2) <- seq(1:length(unique(clusters)))
+# names(indCombs) <- seq(1:length(unique(clusters)))
 
+# Loop through clusters and select candidate species with more than 20% of sensitivity 
+candidates <- vector("list", length(unique(clusters)))
 for (i in 1:length(unique(clusters))){
-  label <- paste0("Group ",i)
   # Select species with more than 20% of sensitivity for group [[i]]
   sel <- which(B[,i]>0.2)
-  names(sc)[[i]] <- 1
-  df=sppObs[,sel]
-  # Run indicator analysis with species combinations
-  sc[[i]] <- indicators(X=df, cluster=clusters, group=i, max.order=max.order, 
-               verbose=TRUE, XC=TRUE, nboot=1000, At=At, Bt=Bt)
-  # Extract species and species combinations from results
-  ind.df <- print(sc[[i]])
-  indCombs[[i]] <- row.names(ind.df) # Species and species combos used
-  print(length(sel))
-  # Determine if combinations improve coverage
-  par(mfrow = c(1,1))
-  filename <- paste0("Coverage.Group",i,".png")
-  png(filename)
-  plotcoverage(sc[[i]], main=label)
-  plotcoverage(sc[[i]], max.order=1, add=TRUE, lty=2, col="red")
-  legend(x=0.1, y=20, legend=c("Species combinations","Species singletons"),
+  candidates[[i]]=sppObs[,sel]
+}
+
+# Determine which candidate species (and species combinations) are indicators
+sc <- vector("list",length(unique(clusters)))
+names(sc) <- seq(1:length(unique(clusters)))
+for (i in 1:length(unique(clusters))){
+  tryCatch(
+    expr = {
+      sc[[i]] <- indicators(X=candidates[[i]], cluster=clusters, group=i, max.order=max.order, 
+                            verbose=TRUE, XC=TRUE, nboot=1000, At=At, Bt=Bt)
+    },
+    error = function(e){
+      message(" No indicators for cluster ", i)
+      print(e)
+    },
+    finally = {
+      message(" Finished assessing cluster ", i)
+      names(sc)[[i]] <- i
+      print(sc[[i]])
+      print(names(sc))
+    }
+  )
+}
+
+
+# sc.slow <- vector("list",length(unique(clusters)))
+# names(sc.slow) <- seq(1:length(unique(clusters)))
+# sc.slow[[1]] <- indicators(X=candidates[[1]], cluster=clusters, group=1, max.order=max.order, 
+#                       verbose=TRUE, XC=TRUE, nboot=1000, At=At, Bt=Bt)
+# sc.slow[[2]] <- indicators(X=candidates[[2]], cluster=clusters, group=2, max.order=max.order, 
+#                       verbose=TRUE, XC=TRUE, nboot=1000, At=At, Bt=Bt)
+# sc.slow[[3]] <- indicators(X=candidates[[3]], cluster=clusters, group=3, max.order=max.order, 
+#                       verbose=TRUE, XC=TRUE, nboot=1000, At=At, Bt=Bt)
+# sc.slow[[4]] <- indicators(X=candidates[[4]], cluster=clusters, group=4, max.order=max.order, 
+#                       verbose=TRUE, XC=TRUE, nboot=1000, At=At, Bt=Bt)
+# sc.slow[[5]] <- indicators(X=candidates[[5]], cluster=clusters, group=5, max.order=max.order, 
+#                       verbose=TRUE, XC=TRUE, nboot=1000, At=At, Bt=Bt)
+# sc.slow[[6]] <- indicators(X=candidates[[6]], cluster=clusters, group=6, max.order=max.order, 
+#                       verbose=TRUE, XC=TRUE, nboot=1000, At=At, Bt=Bt)
+
+
+for (i in 1:length(unique(clusters))){
+  tryCatch(
+    expr = {
+      # Extract species and species combinations from results
+      ind.df <- print(sc[[i]])
+      indCombs[[i]] <- row.names(ind.df) # Species and species combos used
+      print(length(sel))
+      # Determine if combinations improve coverage
+      par(mfrow = c(1,1))
+      filename <- paste0("Coverage.Group",i,".png")
+      png(filename)
+      plotcoverage(sc[[i]], main=label)
+      plotcoverage(sc[[i]], max.order=1, add=TRUE, lty=2, col="red")
+      legend(x=0.1, y=20, legend=c("Species combinations","Species singletons"),
          lty=c(1,2), col=c("black","red"), bty="n")
-  dev.off()
-  # Plot positive predictive power and sensitivity against the order of combinations
-  filename <- paste0("PosPredPwr.Sensitivity.Grp",i,".png")
-  png(filename)
-  par(mfrow = c(1,2))
-  plot(sc[[i]], type="A", main=label)
-  plot(sc[[i]], type="B")
-  dev.off()
-  summary(sc[[i]])
-  # Prune indicators to determine the best subset of indicators
-  sc2[[i]] <- pruneindicators( sc[[i]], At=At, Bt=Bt, verbose=TRUE )
-  names(sc2)[[i]] <- i
-  print(sc2[[i]])
-  print("NEXT CLUSTER...")
+      dev.off()
+      # # Plot positive predictive power and sensitivity against the order of combinations
+      # filename <- paste0("PosPredPwr.Sensitivity.Grp",i,".png")
+      # png(filename)
+      # par(mfrow = c(1,2))
+      # plot(sc[[i]], type="A", main=label)
+      # plot(sc[[i]], type="B")
+      # dev.off()
+      summary(sc[[i]])
+      # Prune indicators to determine the best subset of indicators
+      sc2[[i]] <- pruneindicators( sc[[i]], At=At, Bt=Bt, verbose=TRUE )
+      names(sc2)[[i]] <- i
+      print(sc2[[i]])
+      print("NEXT CLUSTER...")
+    },
+    error = function(e){
+      message(" No indicators for cluster ", i)
+      print(e)
+    }
+  )
 }
 
 # Clean up
@@ -283,7 +342,7 @@ for (i in 1:nrow(cl.freq)){
   nFinal[i] <- length(finalInd[[i]])
 }
 
-site.Details <- as.data.frame( cbind(nCl, nSites, nCandidate, nValid, nFinal, coverageSC) )
+site.Details <- as.data.frame( cbind(nCl, nSites, nCandidate, nValid, nFinal, covSppComb) )
 colnames(site.Details) <- c("Cluster","Sites","Candidate.Spp","Valid.Spp+SppCombos","Pruned.Spp+SppCombos","Coverage")
 site.Details
 write_csv(site.Details, path="SiteCharacteristics.csv")
@@ -327,8 +386,6 @@ for (i in 1:length(sc)){
   valInd <- bind_rows(valInd, new.row)
 }
 valInd
-df.1 <- dplyr::filter(valInd, Cluster==2)
-write_csv(valInd, "ValidInd.Grp.csv")
 write_csv(df.1, "ValidInd.Grp2.csv")
 saveRDS(valInd, "ValidIndicatorsTbl.RDS")
 valInd <- readRDS("ValidIndicatorsTbl.RDS")
@@ -384,9 +441,6 @@ I.plot <- new.df %>%
     theme(axis.text.x = element_text(angle=90, hjust=1))
 I.plot
 ggsave("SqrtIndVal_byCluster.png", A.plot, dpi = 300, width = 12, height = 12, path = getwd())
-
-
-
 
 
 # To Do *1:  Compare final with print(sc[[i]])
