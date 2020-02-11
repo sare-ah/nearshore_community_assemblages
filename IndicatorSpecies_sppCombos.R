@@ -23,6 +23,7 @@ rm(list=ls())
 
 library(tidyverse)
 library(indicspecies) # use indicspecies_1.7.6.tar.gz (older version)
+library(labdsv)
 library(rstudioapi)
 
 # Start timer
@@ -52,7 +53,7 @@ getwd()
 # Set up new directory for all results
 #-------------------------------------
 date <- format(Sys.Date(), "%b_%d")
-outdir <- "Cluster6"
+outdir <- "Cluster8"
 #outdir <- paste0(date,region,".nSites",nSiteCl,"_maxCombo",max.order,"_At",At,"_Bt",Bt)
 setwd( "../Results") 
 if (dir.exists(outdir)){
@@ -86,6 +87,7 @@ maxCols <- d[2]-2 # don't count TransDepth & cluster
 
 cl.freq <- cluster.freq$ALL
 cl.freq <- map_dfr(cl.freq,identity)
+
 
 # Create a long pivot table of all species present in each trans
 spp_long <- pivot_longer(spp, cols = 1:maxCols, names_to = "Spp", values_to = "Presence")
@@ -145,9 +147,9 @@ plotcoverage(x=sppObs, y=indvalori, group="2", lty=2, col="blue", add=TRUE)
 plotcoverage(x=sppObs, y=indvalori, group="3", lty=1, col="green", add=TRUE)
 plotcoverage(x=sppObs, y=indvalori, group="4", lty=2, col="red", add=TRUE)
 plotcoverage(x=sppObs, y=indvalori, group="5", lty=3, col="purple", add=TRUE)
-plotcoverage(x=sppObs, y=indvalori, group="6", lty=3, col="grey", add=TRUE)
-legend(x = 0.01, y=30,legend=c("group 1","group 2","group 3","group 4","group 5","group 6"),
-       lty=c(1,2,3), col=c("black","blue","green","red","purple","grey"), bty="n")
+#plotcoverage(x=sppObs, y=indvalori, group="6", lty=3, col="grey", add=TRUE)
+legend(x = 0.01, y=30,legend=c("group 1","group 2","group 3","group 4","group 5"),
+       lty=c(1,2,3), col=c("black","blue","green","red","purple"), bty="n")
 dev.off()
 
 # Species combinations as indicators of site groups --- #4
@@ -178,7 +180,7 @@ indvalspcomb <- readRDS("SpeciesComboMultipatt.RDS")
 
 # Coverage - proportion of sites where one or another indicator is found
 coverage(sppComb,indvalspcomb)
-covSppComb <- coverage(sppComb, indvalspcomb, At=0.6, Bt=Bt, alpha = 0.05)
+covSppComb <- coverage(sppComb, indvalspcomb, At=At, Bt=Bt, alpha = 0.05)
 covSppComb
 
 # Plot how coverage changes with 'A' threshold
@@ -191,9 +193,9 @@ plotcoverage(x=sppComb, y=indvalspcomb, group="2", lty=2, col="blue", add=TRUE)
 plotcoverage(x=sppComb, y=indvalspcomb, group="3", lty=1, col="green", add=TRUE)
 plotcoverage(x=sppComb, y=indvalspcomb, group="4", lty=2, col="red", add=TRUE)
 plotcoverage(x=sppComb, y=indvalspcomb, group="5", lty=3, col="purple", add=TRUE)
-plotcoverage(x=sppComb, y=indvalspcomb, group="6", lty=3, col="grey", add=TRUE)
-legend(x = 0.01, y=30,legend=c("group 1","group 2","group 3","group 4","group 5","group 6"),
-       lty=c(1,2,3), col=c("black","blue","green","red","purple","grey"), bty="n")
+#plotcoverage(x=sppComb, y=indvalspcomb, group="6", lty=3, col="grey", add=TRUE)
+legend(x = 0.01, y=30,legend=c("group 1","group 2","group 3","group 4","group 5"),
+       lty=c(1,2,3), col=c("black","blue","green","red","purple"), bty="n")
 dev.off()
 
 # palette="Dark2"
@@ -210,13 +212,14 @@ dev.off()
 # Determine strength of species site-group associations
 # Square root of IndVal index is returned
 B <- strassoc( sppObs, cluster=clusters, func="B" )
+B$Spp <- row.names(B)
+B <- B %>%
+  dplyr::select(Spp, everything())
+write_csv(B, "SqrootOfIndval.csv")
 
 # Loop through clusters and select species with more than 20% of sensitivity for the first group
 # Create empty lists for loop outputs
-# sc2 <- vector("list",length(unique(clusters)))
-# indCombs <- vector("list",length(unique(clusters)))
-# names(sc2) <- seq(1:length(unique(clusters)))
-# names(indCombs) <- seq(1:length(unique(clusters)))
+
 
 # Loop through clusters and select candidate species with more than 20% of sensitivity 
 candidates <- vector("list", length(unique(clusters)))
@@ -228,12 +231,19 @@ for (i in 1:length(unique(clusters))){
 
 # Determine which candidate species (and species combinations) are indicators
 sc <- vector("list",length(unique(clusters)))
-names(sc) <- seq(1:length(unique(clusters)))
-for (i in 1:length(unique(clusters))){
+sc <- vector("list", 18)
+names(sc) <- seq(1:length(sc))
+for (i in 1:length(sc)){
+ sc[[i]]$name <- paste0("Cluster ",i) 
+}
+for (i in 1:length(sc)){
   tryCatch(
     expr = {
       sc[[i]] <- indicators(X=candidates[[i]], cluster=clusters, group=i, max.order=max.order, 
                             verbose=TRUE, XC=TRUE, nboot=1000, At=At, Bt=Bt)
+      sc[[i]]$name <- paste0("Cluster ",i) 
+      # sc.10 <- indicators(X=candidates[[i]], cluster=clusters, group=i, max.order=max.order, 
+   #                         verbose=TRUE, XC=TRUE, nboot=1000, At=At, Bt=Bt)
     },
     error = function(e){
       message(" No indicators for cluster ", i)
@@ -242,65 +252,72 @@ for (i in 1:length(unique(clusters))){
     finally = {
       message(" Finished assessing cluster ", i)
       names(sc)[[i]] <- i
-      print(sc[[i]])
+      summary(sc[[i]])
       print(names(sc))
     }
   )
 }
 
 
-# sc.slow <- vector("list",length(unique(clusters)))
-# names(sc.slow) <- seq(1:length(unique(clusters)))
-# sc.slow[[1]] <- indicators(X=candidates[[1]], cluster=clusters, group=1, max.order=max.order, 
-#                       verbose=TRUE, XC=TRUE, nboot=1000, At=At, Bt=Bt)
-# sc.slow[[2]] <- indicators(X=candidates[[2]], cluster=clusters, group=2, max.order=max.order, 
-#                       verbose=TRUE, XC=TRUE, nboot=1000, At=At, Bt=Bt)
-# sc.slow[[3]] <- indicators(X=candidates[[3]], cluster=clusters, group=3, max.order=max.order, 
-#                       verbose=TRUE, XC=TRUE, nboot=1000, At=At, Bt=Bt)
-# sc.slow[[4]] <- indicators(X=candidates[[4]], cluster=clusters, group=4, max.order=max.order, 
-#                       verbose=TRUE, XC=TRUE, nboot=1000, At=At, Bt=Bt)
-# sc.slow[[5]] <- indicators(X=candidates[[5]], cluster=clusters, group=5, max.order=max.order, 
-#                       verbose=TRUE, XC=TRUE, nboot=1000, At=At, Bt=Bt)
-# sc.slow[[6]] <- indicators(X=candidates[[6]], cluster=clusters, group=6, max.order=max.order, 
-#                       verbose=TRUE, XC=TRUE, nboot=1000, At=At, Bt=Bt)
+# Create new list for the rest of the code
+sc.new <- list(sc[[3]],sc[[7]],sc[[8]],sc[[9]])
+names(sc.new) <- c("3","7","8","9")
+sc <- sc.new
 
+# Create empty list for species and species combinations 
+indCombs <- vector("list",length(unique(clusters)))
 
-for (i in 1:length(unique(clusters))){
-  tryCatch(
-    expr = {
-      # Extract species and species combinations from results
-      ind.df <- print(sc[[i]])
-      indCombs[[i]] <- row.names(ind.df) # Species and species combos used
-      print(length(sel))
-      # Determine if combinations improve coverage
-      par(mfrow = c(1,1))
-      filename <- paste0("Coverage.Group",i,".png")
-      png(filename)
-      plotcoverage(sc[[i]], main=label)
-      plotcoverage(sc[[i]], max.order=1, add=TRUE, lty=2, col="red")
-      legend(x=0.1, y=20, legend=c("Species combinations","Species singletons"),
-         lty=c(1,2), col=c("black","red"), bty="n")
-      dev.off()
-      # # Plot positive predictive power and sensitivity against the order of combinations
-      # filename <- paste0("PosPredPwr.Sensitivity.Grp",i,".png")
-      # png(filename)
-      # par(mfrow = c(1,2))
-      # plot(sc[[i]], type="A", main=label)
-      # plot(sc[[i]], type="B")
-      # dev.off()
-      summary(sc[[i]])
-      # Prune indicators to determine the best subset of indicators
-      sc2[[i]] <- pruneindicators( sc[[i]], At=At, Bt=Bt, verbose=TRUE )
-      names(sc2)[[i]] <- i
-      print(sc2[[i]])
-      print("NEXT CLUSTER...")
-    },
-    error = function(e){
-      message(" No indicators for cluster ", i)
-      print(e)
-    }
-  )
-}
+# Extract species and species combinations from results
+indCombs <- lapply( seq_along(1:length(unique(clusters))), function(i) {
+  getNmes=try(row.names(print(sc[[i]])),TRUE)
+  if(isTRUE(class(getNmes)=="try-error")) { 
+    return(NULL) } 
+  else { return(getNmes) } } )
+
+# Add cluster names to list elements
+names(indCombs) <- seq(1:length(unique(clusters)))
+
+#new.seq <- c(3,8,9,10)
+
+# Determine if combinations improve coverage
+lapply( seq_along(1:length(sc)), function(i) {
+    par(mfrow = c(1,1))
+    filename <- paste0("Coverage.Group",i,".png")
+    label <- i
+    png(filename)
+    plotcoverage(sc[[i]], main=label)
+    plotcoverage(sc[[i]], max.order=1, add=TRUE, lty=2, col="red")
+    legend(x=0.1, y=20, legend=c("Species combinations","Species singletons"),
+       lty=c(1,2), col=c("black","red"), bty="n")
+    dev.off()
+  }
+)
+
+# # Plot positive predictive power and sensitivity against the order of combinations
+# lapply( seq_along(1:length(unique(clusters))), function(i) {
+#   if (!is.null(sc[[i]])){
+#     filename <- paste0("PosPredPwr.Sensitivity.Grp",i,".png")
+#     label <- i
+#     png(filename)
+#     par(mfrow = c(1,1))
+#     plot(sc[[i]], type="A", main=label)
+#     plot(sc[[i]], type="B")
+#     dev.off() }
+#   else {
+#     print("No indicators for this cluster")
+#     }
+#   }
+# )
+
+# Create empty list for pruned species and species combinations
+sc2 <- vector("list",length(sc))
+names(sc2) <- seq(1:length(sc))
+
+sc2 <- lapply( seq_along(1:length(unique(clusters))), function(i) {
+  prune <- try(pruneindicators( sc[[i]], At=At, Bt=Bt, verbose=TRUE ),TRUE)
+  if(isTRUE(class(prune)=="try-error")) { 
+    return(NULL) } 
+  else { return(prune) } } )
 
 # Clean up
 par(mfrow = c(1,1))
@@ -324,27 +341,42 @@ nFinal <- as.vector(integer()) #7 Smallest set of valid indicators w/same covera
 sppInd <- vector("list", nrow(cl.freq)) # List of valid indicators (single species + valid species combinations)
 finalInd <- vector("list", nrow(cl.freq)) # List of final indicators (single species + valid species combinations)
 
-for (i in 1:nrow(cl.freq)){
-  print(i)
-  # Cluster number
-  nCl[i] <- i
-  # Sites
-  nSites[i] <- cl.freq$Freq[cl.freq$cl==(i)]
-  # Candidate species
-  nCandidate[i] <- length(sc[[i]]$candidates)
-  # Valid indicators (species + species combinations)
-  df <- print(sc[[i]])
-  sppInd[[i]] <- row.names(df)
-  nValid[i] <- length(sppInd[[i]])
-  # Final indicators - output from prune()
-  df <- print(sc2[[i]])
-  finalInd[[i]] <- row.names(df)
-  nFinal[i] <- length(finalInd[[i]])
-}
+nCl <- unique(cl.freq$cl)
 
-site.Details <- as.data.frame( cbind(nCl, nSites, nCandidate, nValid, nFinal, covSppComb) )
-colnames(site.Details) <- c("Cluster","Sites","Candidate.Spp","Valid.Spp+SppCombos","Pruned.Spp+SppCombos","Coverage")
+# Sites
+nSites <- unlist(lapply(seq_along(nCl), function(i) {
+                 value <- try(cl.freq$Freq[cl.freq$cl==(i)], TRUE)
+                 if(isTRUE(class(value)=="try-error")) { 
+                   return(NULL) } 
+                 else { return(value) } } ))
+
+# Candidate species
+nCandidate <- unlist(lapply(seq_along(nCl), function(i) {
+                    value <- try(length(sc[[i]]$candidates), TRUE)
+                    if(isTRUE(class(value)=="try-error")) { 
+                      return(NULL) } 
+                    else { return(value) } } ))
+
+# Valid indicators (species + species combinations)
+nValid <- unlist(lapply(seq_along(nCl), function(i) {
+                value <- try(length(print(sc[[i]])), TRUE)
+                if(isTRUE(class(value)=="try-error")) { 
+                  return(NULL) } 
+                else { return(value) } } ))
+
+# Final indicators - output from prune()
+nFinal <- unlist(lapply(seq_along(nCl), function(i) {
+                value <- try(length(print(sc2[[i]])), TRUE)
+                if(isTRUE(class(value)=="try-error")) { 
+                return(NULL) } 
+                else { return(value) } } ))
+
+site.Details <- as.data.frame( cbind(nCl, nSites, nCandidate, nValid, nFinal) )
+#site.Details <- map_df(site.Details, identity)
+colnames(site.Details) <- c("Cluster","Sites","Candidate.Spp","Valid.Spp+SppCombos","Pruned.Spp+SppCombos")
+site.Details <- site.Details[order(site.Details$Cluster),]
 site.Details
+site.Details <- cbind(site.Details, covSppComb)
 write_csv(site.Details, path="SiteCharacteristics.csv")
 saveRDS(site.Details, "SiteCharacteristics.RDS")
 
@@ -364,29 +396,41 @@ valInd <- tibble("Cluster" = as.integer(),
                      "sqrtIV.uCI" = as.numeric())
 # Loop through each cluster and calculate columns for table
 for (i in 1:length(sc)){
-  Cluster <- i
-  df <- print(sc[[i]])
-  Indicator <- as.character(row.names(df))
-  pos.predict <- sc[[i]]$A %>% 
-    select(stat, lowerCI, upperCI) %>%
-    rename(A.lCI = lowerCI,
+  tryCatch(
+    expr = {
+      Cluster <- i
+      df <- print(sc[[i]])
+      Indicator <- as.character(row.names(df))
+      pos.predict <- sc[[i]]$A %>% 
+        dplyr::select(stat, lowerCI, upperCI) %>%
+        rename(A.lCI = lowerCI,
            A = stat,
            A.uCI = upperCI)
-  sensitivity <- sc[[i]]$B %>% 
-    select(stat, lowerCI, upperCI) %>%
-    rename(B.lCI = lowerCI,
+      sensitivity <- sc[[i]]$B %>% 
+        dplyr::select(stat, lowerCI, upperCI) %>%
+        rename(B.lCI = lowerCI,
            B = stat,
            B.uCI = upperCI)
-  sqrtIV <- sc[[i]]$sqrtIV %>% 
-    select(stat, lowerCI, upperCI) %>%
-    rename(sqrtIV.lCI = lowerCI,
+      sqrtIV <- sc[[i]]$sqrtIV %>% 
+        dplyr::select(stat, lowerCI, upperCI) %>%
+        rename(sqrtIV.lCI = lowerCI,
            sqrtIV = stat,
            sqrtIV.uCI = upperCI)
-  new.row <- cbind(Cluster, Indicator, pos.predict, sensitivity, sqrtIV, stringsAsFactors=FALSE)
-  valInd <- bind_rows(valInd, new.row)
+      new.row <- cbind(Cluster, Indicator, pos.predict, sensitivity, sqrtIV, stringsAsFactors=FALSE)
+      valInd <- bind_rows(valInd, new.row)
+      },
+      error = function(e){
+        message(" No indicators for cluster ", i)
+        print(e)
+      },
+      finally = {
+        message(" Finished assessing cluster ", i)
+        valInd
+      }
+  )
 }
 valInd
-write_csv(df.1, "ValidInd.Grp2.csv")
+write_csv(valInd, "ValidInd.Grp.csv")
 saveRDS(valInd, "ValidIndicatorsTbl.RDS")
 valInd <- readRDS("ValidIndicatorsTbl.RDS")
 
@@ -402,7 +446,7 @@ new.df$Cluster <- as.factor(new.df$Cluster)
 
 #png("PositivePredPwr_byCluster.png", res=72, height=800, width=1200)
 A.plot <- new.df %>%
-  filter(str_detect(stat,"A")) %>% 
+  dplyr::filter(str_detect(stat,"A")) %>% 
   ggplot( aes(x=Indicator, y=values, fill=Cluster)) +
     geom_boxplot() +
     ylab("Positive Predictive Power (A)") +
@@ -452,8 +496,8 @@ ggsave("SqrtIndVal_byCluster.png", A.plot, dpi = 300, width = 12, height = 12, p
 
 # Save the entire workspace
 #--------------------------
-save.image(file="my_work_space.RData")
-load("my_work_space.RData")
+save.image(file="my_work_space_indicator.RData")
+load("my_work_space_indicator.RData")
 
 
 # ## Run indicator analysis with species combinations for the first group,

@@ -9,7 +9,7 @@ library(vegan)
 #library(rgdal)
 library(labdsv) # for indicator species analysis
 
-
+setwd("~/R/PROJECTS_MY/CommunityAssemblages/Results/Cluster4")
 
 pValCutoff <- 0.05
 indvalCutoff <- 0.15
@@ -22,10 +22,13 @@ speciesFullCl <- readRDS("speciesFullCl.RDS")
 # Read in species list
 species <- readRDS("../../RDS/species.RDS")
 
+# Determine the number of elements within the site x species list
+nElements <- length(unique(speciesFullCl$ALL$cl))
+
 # Match species in species list as speciesNew (species list changes from region to region)
 #speciesNew <- species[species%in% names(dat)]
-speciesTrim <- vector("list", 4)
-indvalList <- vector("list", 4)
+speciesTrim <- vector("list", nElements)
+indvalList <- vector("list", nElements)
 for (i in 1:length(speciesFullCl)){
   print(dim(speciesFullCl[[i]]))
   # Select species of interest in each region
@@ -61,7 +64,7 @@ indicatorValues <- function(ind){
   return(indtab)
 }
 # Run function
-indval.summary <- vector("list", 4)
+indval.summary <- vector("list", nElements)
 for (i in 1:length(indvalList)){
   indval.summary[[i]] <- indicatorValues(indvalList[[i]])
   names(indval.summary)[[i]] <- names(indvalList)[i]
@@ -70,8 +73,9 @@ for (i in 1:length(indvalList)){
 
 
 # Select only species that have a pval less than the predetermined cutoff?
-step1 <- vector("list", 4)
-step2 <- vector("list", 4)
+# step1 <- vector("list", nElements)
+# step2 <- vector("list", nElements)
+signifSpp <- vector("list", nElements)
 
 pValCutOffs <- function(x){
   if(!is.na(pValCutoff)){
@@ -83,7 +87,7 @@ pValCutOffs <- function(x){
 indval.pvals <- lapply(indval.summary, pValCutOffs)
 
 
-listElement <- vector("list", 4)
+#listElement <- vector("list", nElements)
 
 # Function to select indicator species
 indicatorSpecies <- function(df, indvalCutoff){
@@ -91,10 +95,10 @@ indicatorSpecies <- function(df, indvalCutoff){
   topSp <- list()
   #topSpdf <- list()
   # # df to hold list element i
-  df <- listElement[[i]]
+  #df <- listElement[[i]]
   df$species <- as.character( df$species )
   clusters <- unique(df$maxcl)
-  for (i in clusters[i]){
+  for (i in 1:length(clusters)){
     print(i)
     # Loop thru each cluster...
     df.cl.X <- df[df$maxcl==(i), ]
@@ -103,15 +107,15 @@ indicatorSpecies <- function(df, indvalCutoff){
     df.cl.X$species <- as.character( df.cl.X$species )
     # Find index for cluster indval
     indCol <- grep(paste0("indval_",i,"$"), names(df.cl.X))
-    # Find index for cluster frequency  
+    # Find index for cluster frequency in dataframe (which column) 
     freqCol <- grep(paste0("freq_",i,"$"), names(df.cl.X)) 
     # Order by indval
     df.cl.X <- df.cl.X[order(-df.cl.X[,indCol]), ]
     # Remove NA's, if any 
     df.cl.X <- df.cl.X[!is.na(df.cl.X$species), ]
-    # Select species where indval value is less than cutoff
+    # Select species where indval value is greater than cutoff
     df.cl.XLim <- df.cl.X[df.cl.X[,indCol] >= indvalCutoff, ]
-    # If no species are less than the cutoff, then ...
+    # If no species meet the cutoff, then ...
     if(nrow(df.cl.XLim)==0){
       df.cl.XLim[1,c(1:2)] <- c( "no ind species",i )
       df.cl.XLim$indvalInMaxcl <- NA
@@ -120,11 +124,10 @@ indicatorSpecies <- function(df, indvalCutoff){
     } else {
       df.cl.XLim$indvalInMaxcl <- unlist( c(df.cl.XLim[,indCol]) )
       df.cl.XLim$freqInMaxcl <- unlist( c(df.cl.XLim[,freqCol]) )
-      df.cl.XLim[,freqCol] <- NA
     }
     # Subset dataframe
     #df.cl.XLim <- df.cl.XLim[,c("species","maxcl","indvalInMaxcl","freqInMaxcl",names(abu[,2:ncol(abu)]))]
-    df.cl.XLim <- df.cl.XLim[,c("species","maxcl","indvalInMaxcl","freqInMaxcl",paste0("freq_",max(df$maxcl)))]# Need to build a new sequence here!
+    df.cl.XLim <- df.cl.XLim[,c("species","maxcl","indvalInMaxcl","freqInMaxcl")]# Need to build a new sequence here!
     df.cl.XLim
     # Add to list
     topSp[[i]] <- df.cl.XLim
@@ -133,15 +136,27 @@ indicatorSpecies <- function(df, indvalCutoff){
   topSpdf <- do.call("rbind",topSp)
   return(topSpdf)
 }
-indSpp <- vector("list", 4)
-indSpp <- indicatorSpecies(indval.pvalMin, indvalCutoff)
 
-for (i in 1:length(indval.pvalMin)){
-  df.pvalMin <- indval.pvalMin[[i]]
-  cl <- unique(indval.pvalMin[[i]]$maxcl)
-  indSpp <- lapply(df.pvalMin, indicatorSpecies)
-  newList[[i]] <- indSpp
-}
+# Pull out ALL dataframe from list and run function
+indval.pvalMin <- indval.pvals$ALL
+indSpp <- indicatorSpecies(indval.pvalMin, indvalCutoff)
+indSpp
+
+saveRDS(indSpp, "IndicatorSpecies.labdsv.RDS")
+write_csv(indSpp, "IndicatorSpecies.labdsv.csv")
+
+# Save the entire workspace
+#--------------------------
+save.image(file="my_work_space_labdsv.RData")
+load("my_work_space_labdsv.RData")
+
+# # Can I run it on each element of the list?
+# for (i in 1:length(indval.pvals)){
+#   df.pvalMin <- indval.pvals[[i]]
+#   cl <- unique(indval.pvals[[i]]$maxcl)
+#   indSpp <- lapply(df.pvalMin, indicatorSpecies)
+#   newList[[i]] <- indSpp
+# }
 
 
 # # TESTING ## TESTING ## TESTING ## TESTING ## TESTING ## TESTING ## TESTING #

@@ -44,7 +44,7 @@ clusterMethod <- "ward.D2"
 date <- format(Sys.Date(), "%b_%d")
 region <- "All"
 #outdir <- paste0(date,"Cluster.",siteThreshold,"_",spThreshold,"_",region)
-outdir <- "Cluster6.Dendrogram"
+outdir <- "Cluster4"
 dsn.dir <- "SHP"
 
 setwd( "../Results") 
@@ -192,7 +192,7 @@ for (i in 1:length(myCluster)){
 # rect.hclust(benthtree, h=seth, border="red") # Cutoff based on visual inspection of the tree
 
 # Vector to entry heights from plots
-hts <- c(4,5,2,2,6) # corresponds to HG,NCC,QCS,SoG
+hts <- c(4,5,2,2, 8) # corresponds to HG,NCC,QCS,SoG
 
 # Add height to large list
 for (i in 1:length(myCluster)){
@@ -247,7 +247,7 @@ cluster.frq
 par(mfrow = c(1,1))
 
 # Number of clusters that capture 90% of samples
-nTopClusters <- list(5,4,5,4, 6) #list(5,4,5,4,4) edited for ALL
+nTopClusters <- list(5,4,5,4, 4) #list(5,4,5,4,4) edited for ALL
 buildseq <- function(x){
   seq(1,(x),by=1)
 }
@@ -325,7 +325,7 @@ saveRDS( speciesFullCl, "speciesFullCl.RDS" )
 
 # Save the entire workspace
 #--------------------------
-save.image(file="my_work_space.RData")
-load("my_work_space.RData")
+save.image(file="my_work_space_cluster.RData")
+load("my_work_space_cluster.RData")
 
 
