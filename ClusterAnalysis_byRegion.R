@@ -60,9 +60,9 @@ getwd()
 
 # Read in species by regions
 #---------------------------
-sppByRegion <- readRDS("C:/Users/daviessa/Documents/R/PROJECTS_MY/DiveSurveys_DataPrep/Data/RDS/sppByRegion.rds")
-sppDF <- readRDS("C:/Users/daviessa/Documents/R/PROJECTS_MY/DiveSurveys_DataPrep/Data/RDS/sppByRegion_Dataframe.rds")
-allCl <- readRDS("C:/Users/daviessa/Documents/R/PROJECTS_MY/CommunityAssemblages/RDS/clusterAllSites.RDS")
+# sppByRegion <- readRDS("C:/Users/daviessa/Documents/R/PROJECTS_MY/DiveSurveys_DataPrep/Data/RDS/sppByRegion.rds")
+# sppDF <- readRDS("C:/Users/daviessa/Documents/R/PROJECTS_MY/DiveSurveys_DataPrep/Data/RDS/sppByRegion_Dataframe.rds")
+# allCl <- readRDS("C:/Users/daviessa/Documents/R/PROJECTS_MY/CommunityAssemblages/RDS/clusterAllSites.RDS")
 
 # Read in spatialized points
 #---------------------------

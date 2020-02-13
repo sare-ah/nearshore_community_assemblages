@@ -26,16 +26,12 @@ library(indicspecies) # use indicspecies_1.7.6.tar.gz (older version)
 library(labdsv)
 library(rstudioapi)
 
-# Start timer
-#------------
-#start.time <- Sys.time()
-
 # Inputs
 #-------
-nSiteCl <- 0.20 # Threshold of sites a species is present in for each cluster 
+nSiteCl <- 0.10 # Threshold of sites a species is present in for each cluster 
 max.order <- 3  # Maximum number of species combinations
 At <- 0.6       # Threshold for positive predictive value (specificity)
-Bt <- 0.25      # Threshold for sensitivity (fidelity)
+Bt <- 0.20      # Threshold for sensitivity (fidelity)
 region <- "ALL"
 
 
@@ -53,7 +49,7 @@ getwd()
 # Set up new directory for all results
 #-------------------------------------
 date <- format(Sys.Date(), "%b_%d")
-outdir <- "Cluster8"
+outdir <- "byQuad_BoP1"
 #outdir <- paste0(date,region,".nSites",nSiteCl,"_maxCombo",max.order,"_At",At,"_Bt",Bt)
 setwd( "../Results") 
 if (dir.exists(outdir)){
@@ -69,7 +65,7 @@ getwd()
 #------------------
 # Species by region
 speciesFullCl <- readRDS("speciesFullCl.RDS") # manually move correct matrix to working folder
-#speciesFullCl <- readRDS("../../RDS/speciesFullCl.RDS")
+#speciesFullCl <- readRDS("speciesFulldepth.RDS")
 
 # Species list
 #species <- readRDS("../../RDS/species.RDS")
@@ -80,13 +76,14 @@ cluster.freq <- readRDS("cluster.freq.RDS")
 # Determine which species occur in atleast _ _ % of target clusters --- #3
 #----------------------------------------------------------------
 # # Grab just one list element
-spp <- as.data.frame(speciesFullCl$ALL)
+spp <- as.data.frame(speciesFullCl)
 #spp <- map_dfr(spp,identity)
 d <- dim(spp)
-maxCols <- d[2]-2 # don't count TransDepth & cluster
+maxCols <- d[2]-2 # don't count TransDepth & cluster (sampling unit ID & grouping)
 
-cl.freq <- cluster.freq$ALL
-cl.freq <- map_dfr(cl.freq,identity)
+cl.freq <- cluster.freq
+# cl.freq <- cluster.freq$ALL
+# cl.freq <- map_dfr(cl.freq,identity)
 
 
 # Create a long pivot table of all species present in each trans
@@ -96,7 +93,7 @@ spp_long <- dplyr::filter( spp_long, Presence==1)
 # Calculate number of sites for each cluster/species combination - reduce size of species combo matrix
 df <- as.data.frame( spp_long %>%
   group_by(cl, Spp) %>%
-  summarise(nSites = length(TransDepth)) )
+  summarise(nSites = length(ID)) )
 
 # Threshold of sites for each cluster
 thrshld <- data.frame( cl=as.integer(cl.freq$cl), thrshld = round(nSiteCl * cl.freq$Freq) )
@@ -113,7 +110,8 @@ sort(targetSpp)
 
 # Build cluster vector and new community data table  
 #--------------------------------------------------
-row.names(spp) <- spp$TransDepth # To Do: row.names() on tibble is deprecated
+# spp <- rownames_to_column(spp, var = "ID")
+# row.names(spp) <- spp$ID # To Do: row.names() on tibble is deprecated
 clusters <- spp$cl
 sppObs <- spp[,targetSpp]
 sppObs[is.na(sppObs)] <- 0
@@ -128,7 +126,14 @@ sppObs <- readRDS("SpeciesMtrxUsed.RDS")
 # The proportion of sites of a given site group where one or another indicator is found
 indvalori <- multipatt(sppObs, clusters, duleg = TRUE, control = how(nperm=999))
 summary(indvalori)
+summary(indvalori, indvalcomp = TRUE)
 print(indvalori)
+
+indval.indval <- indval(sppObs, clusters)
+
+# Are there any species that have high IndVal values for all sites (groupings?)
+# stat = association statistic
+indvalori$sign
 
  
 # Calculate the proportion of sites of the target site group where one or another indicator is found
@@ -145,11 +150,11 @@ png("Coverage_noSppCombos.png")
 plotcoverage(x=sppObs, y=indvalori, group="1", lty=1)
 plotcoverage(x=sppObs, y=indvalori, group="2", lty=2, col="blue", add=TRUE)
 plotcoverage(x=sppObs, y=indvalori, group="3", lty=1, col="green", add=TRUE)
-plotcoverage(x=sppObs, y=indvalori, group="4", lty=2, col="red", add=TRUE)
-plotcoverage(x=sppObs, y=indvalori, group="5", lty=3, col="purple", add=TRUE)
+#plotcoverage(x=sppObs, y=indvalori, group="4", lty=2, col="red", add=TRUE)
+#plotcoverage(x=sppObs, y=indvalori, group="5", lty=3, col="purple", add=TRUE)
 #plotcoverage(x=sppObs, y=indvalori, group="6", lty=3, col="grey", add=TRUE)
-legend(x = 0.01, y=30,legend=c("group 1","group 2","group 3","group 4","group 5"),
-       lty=c(1,2,3), col=c("black","blue","green","red","purple"), bty="n")
+legend(x = 0.01, y=30,legend=c("group 1","group 2","group 3"),
+       lty=c(1,2,3), col=c("black","blue","green","red"), bty="n")
 dev.off()
 
 # Species combinations as indicators of site groups --- #4
@@ -191,11 +196,11 @@ png("Coverage_SppCombos.png")
 plotcoverage(x=sppComb, y=indvalspcomb, group="1", lty=1)
 plotcoverage(x=sppComb, y=indvalspcomb, group="2", lty=2, col="blue", add=TRUE)
 plotcoverage(x=sppComb, y=indvalspcomb, group="3", lty=1, col="green", add=TRUE)
-plotcoverage(x=sppComb, y=indvalspcomb, group="4", lty=2, col="red", add=TRUE)
-plotcoverage(x=sppComb, y=indvalspcomb, group="5", lty=3, col="purple", add=TRUE)
+#plotcoverage(x=sppComb, y=indvalspcomb, group="4", lty=2, col="red", add=TRUE)
+#plotcoverage(x=sppComb, y=indvalspcomb, group="5", lty=3, col="purple", add=TRUE)
 #plotcoverage(x=sppComb, y=indvalspcomb, group="6", lty=3, col="grey", add=TRUE)
-legend(x = 0.01, y=30,legend=c("group 1","group 2","group 3","group 4","group 5"),
-       lty=c(1,2,3), col=c("black","blue","green","red","purple"), bty="n")
+legend(x = 0.01, y=30,legend=c("group 1","group 2","group 3"),
+       lty=c(1,2,3), col=c("black","blue","green","red"), bty="n")
 dev.off()
 
 # palette="Dark2"
@@ -216,6 +221,7 @@ B$Spp <- row.names(B)
 B <- B %>%
   dplyr::select(Spp, everything())
 write_csv(B, "SqrootOfIndval.csv")
+B$Spp <- NULL
 
 # Loop through clusters and select species with more than 20% of sensitivity for the first group
 # Create empty lists for loop outputs
@@ -231,7 +237,7 @@ for (i in 1:length(unique(clusters))){
 
 # Determine which candidate species (and species combinations) are indicators
 sc <- vector("list",length(unique(clusters)))
-sc <- vector("list", 18)
+sc <- vector("list", 8)
 names(sc) <- seq(1:length(sc))
 for (i in 1:length(sc)){
  sc[[i]]$name <- paste0("Cluster ",i) 
