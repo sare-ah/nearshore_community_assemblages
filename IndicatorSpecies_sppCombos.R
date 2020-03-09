@@ -373,13 +373,13 @@ valInd <- readRDS("ValidIndicatorsTbl.RDS")
 
 # Number of indicators for each cluster
 #--------------------------------------
-# Cl | Name | Sites | Spp | Ind | Valid | Cover
+# Cl | Name | Sites | Spp | Ind | Coverage
 
 nCl <- as.vector(integer()) #1 cluster 
 nSites <- as.vector(integer()) #3 Number of sites (cluster.freq.RDS)
 nCandidate <- as.vector(integer()) #4 Number of candidate species - what is candidate? from IndVal()?
 nValid <- as.vector(integer()) #6 Number of valid indicators
-nFinal <- as.vector(integer()) #7 Smallest set of valid indicators w/same coverage as the complete set (after pruning)
+nCoverage <- as.vector(integer()) #7 Smallest set of valid indicators w/same coverage as the complete set (after pruning)
 sppInd <- vector("list", nrow(cl.freq)) # List of valid indicators (single species + valid species combinations)
 
 nCl <- unique(cl.freq$cl)
@@ -388,7 +388,7 @@ nCl <- unique(cl.freq$cl)
 nSites <- unlist(lapply(seq_along(nCl), function(i) {
                  value <- try(cl.freq$Freq[cl.freq$cl==(i)], TRUE)
                  if(is.null(value)) {
-                   print("Error!")
+                   print(paste0(i, " Error!"))
                    return(0) } 
                  else { return(value) } } ))
 
@@ -396,7 +396,7 @@ nSites <- unlist(lapply(seq_along(nCl), function(i) {
 nCandidate <- unlist(lapply(seq_along(nCl), function(i) {
                     value <- try(length(sc[[i]]$candidates), TRUE)
                     if(is.null(value)) {
-                      print("Error!")
+                      print(paste0(i, " Error!"))
                       return(0) } 
                     else { return(value) } } ))
 
@@ -414,11 +414,20 @@ df <- merge(cl.index, cntInd, all.x = TRUE)
 df[is.na(df)] <- 0
 nValid <- df$Combos
 
-site.Details <- as.data.frame( cbind(nCl, nSites, nCandidate, nValid, nFinal) )
-colnames(site.Details) <- c("Cluster","Sites","Candidate.Spp","Valid.Spp+SppCombos")
+# Calculate coverage from indicators list
+nCoverage <- unlist(lapply(seq_along(nCl), function(i) {
+                    value <- try(coverage(sc[[i]], At=At, Bt=Bt, alpha=0.5), TRUE)
+                    if(is.null(value)) {
+                      print(paste0(i, " Error!"))
+                      return(0) } 
+                    else { return(value) } } ))
+# Change value from a proportion to a percentage
+nCoverage <- nCoverage * 100
+
+site.Details <- as.data.frame( cbind(nCl, nSites, nCandidate, nValid, nCoverage) )
+colnames(site.Details) <- c("Cluster","Sites","Candidate.Spp","Valid.Spp+SppCombos","Coverage")
 site.Details <- site.Details[order(site.Details$Cluster),]
 site.Details
-site.Details <- cbind(site.Details, covSppComb) # Not sure if this is valid to add to the table
 write_csv(site.Details, path="SiteCharacteristics.csv")
 saveRDS(site.Details, "SiteCharacteristics.RDS")
 
@@ -507,7 +516,6 @@ save.image(file="my_work_space_indicator.RData")
 load("my_work_space_indicator.RData")
 
 
- 
 # signassoc(X=sppComb[,sel], cluster=clusters, mode=1, control = how(nperm=999))
 # ## Look for species whose abundance is significantly higher in sites belonging
 # ## to one group as opposed to sites not belonging to it.
